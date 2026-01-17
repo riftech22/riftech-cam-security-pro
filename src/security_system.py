@@ -431,10 +431,10 @@ class SecuritySystem:
                  (255, 255, 0), 2)
         
         # Draw camera labels
-        cv2.putText(frame, "TOP CAMERA (Fixed)", (10, 30),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-        cv2.putText(frame, "BOTTOM CAMERA (PTZ)", (10, split_point + 30),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+        cv2.putText(frame, "TOP CAMERA (Fixed)", (20, 60),
+                   cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 255), 4)
+        cv2.putText(frame, "BOTTOM CAMERA (PTZ)", (20, split_point + 60),
+                   cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 255), 4)
         
         # Draw zones
         frame = self.zone_manager.draw_zones(frame, [])
@@ -452,7 +452,7 @@ class SecuritySystem:
                 label = f"Person"
             
             # Draw bounding box
-            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 5)
             
             # Draw skeleton if available
             if det.skeleton:
@@ -460,8 +460,8 @@ class SecuritySystem:
             
             # Draw label
             label = f"{label} {det.confidence:.2f}"
-            cv2.putText(frame, label, (x1, y1 - 10),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+            cv2.putText(frame, label, (x1, y1 - 20),
+                       cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 4)
         
         # Draw bottom detections
         for det in bottom_detections:
@@ -479,7 +479,7 @@ class SecuritySystem:
                 label = f"Person"
             
             # Draw bounding box
-            cv2.rectangle(frame, (x1, y1 + offset), (x2, y2 + offset), color, 2)
+            cv2.rectangle(frame, (x1, y1 + offset), (x2, y2 + offset), color, 5)
             
             # Draw skeleton if available
             if det.skeleton:
@@ -488,18 +488,18 @@ class SecuritySystem:
             
             # Draw label
             label = f"{label} {det.confidence:.2f}"
-            cv2.putText(frame, label, (x1, y1 - 10 + offset),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+            cv2.putText(frame, label, (x1, y1 - 20 + offset),
+                       cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 4)
         
         # Draw system status
         status_text = f"Mode: {self.system_mode.upper()} | FPS: {self._get_fps():.1f}"
-        cv2.putText(frame, status_text, (10, frame.shape[0] - 20),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        cv2.putText(frame, status_text, (20, frame.shape[0] - 40),
+                   cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 4)
         
         # Draw stats
         stats_text = f"Top: {len(top_detections)} | Bottom: {len(bottom_detections)} | Total: {self.stats['persons_detected']}"
-        cv2.putText(frame, stats_text, (10, frame.shape[0] - 50),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        cv2.putText(frame, stats_text, (20, frame.shape[0] - 100),
+                   cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 3)
         
         return frame
     
@@ -528,7 +528,7 @@ class SecuritySystem:
                 label = f"{det.class_name}"
             
             # Draw bounding box
-            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 5)
             
             # Draw skeleton if available
             if det.skeleton:
@@ -536,18 +536,18 @@ class SecuritySystem:
             
             # Draw label
             label = f"{label} {det.confidence:.2f}"
-            cv2.putText(frame, label, (x1, y1 - 10),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+            cv2.putText(frame, label, (x1, y1 - 20),
+                       cv2.FONT_HERSHEY_SIMPLEX, 1.2, color, 4)
         
         # Draw system status
         status_text = f"Mode: {self.system_mode.upper()} | FPS: {self._get_fps():.1f}"
-        cv2.putText(frame, status_text, (10, 30),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        cv2.putText(frame, status_text, (20, 60),
+                   cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 4)
         
         # Draw stats
         stats_text = f"People: {self.stats['persons_detected']} | Breaches: {self.stats['breaches_detected']}"
-        cv2.putText(frame, stats_text, (10, 60),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        cv2.putText(frame, stats_text, (20, 120),
+                   cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 3)
         
         return frame
     
