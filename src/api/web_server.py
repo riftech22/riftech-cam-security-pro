@@ -561,7 +561,7 @@ async def clear_all_zones(current_user: str = Depends(get_current_user)):
 @app.get("/api/faces")
 async def get_faces(current_user: str = Depends(get_current_user)):
     """Get all trusted faces"""
-    faces_dir = config.paths.trusted_faces_dir
+    faces_dir = Path(config.paths.trusted_faces_dir)
     
     if not faces_dir.exists():
         return JSONResponse(content={"faces": []})
@@ -606,7 +606,7 @@ async def upload_face(
         )
     
     # Save face
-    faces_dir = config.paths.trusted_faces_dir
+    faces_dir = Path(config.paths.trusted_faces_dir)
     faces_dir.mkdir(parents=True, exist_ok=True)
     
     # Sanitize filename
@@ -629,7 +629,7 @@ async def delete_face(
     current_user: str = Depends(get_current_user)
 ):
     """Delete trusted face"""
-    faces_dir = config.paths.trusted_faces_dir
+    faces_dir = Path(config.paths.trusted_faces_dir)
     face_path = faces_dir / f"{face_name}.jpg"
     
     if not face_path.exists():
@@ -653,7 +653,7 @@ async def get_alerts(
     current_user: str = Depends(get_current_user)
 ):
     """Get alert history"""
-    alerts_dir = config.paths.alerts_dir
+    alerts_dir = Path(config.paths.alerts_dir)
     
     if not alerts_dir.exists():
         return JSONResponse(content={"alerts": []})
@@ -695,7 +695,7 @@ async def get_recordings(
     current_user: str = Depends(get_current_user)
 ):
     """Get video recordings"""
-    recordings_dir = config.paths.recordings_dir
+    recordings_dir = Path(config.paths.recordings_dir)
     
     if not recordings_dir.exists():
         return JSONResponse(content={"recordings": []})
@@ -719,7 +719,7 @@ async def get_snapshots(
     current_user: str = Depends(get_current_user)
 ):
     """Get snapshots"""
-    snapshots_dir = config.paths.snapshots_dir
+    snapshots_dir = Path(config.paths.snapshots_dir)
     
     if not snapshots_dir.exists():
         return JSONResponse(content={"snapshots": []})
