@@ -265,7 +265,8 @@ body {
 .video-container {
     position: relative;
     width: 100%;
-    aspect-ratio: 16 / 9;
+    height: auto;
+    min-height: 400px;
     background: #000;
     border-radius: 8px;
     overflow: hidden;
@@ -275,12 +276,9 @@ body {
 
 .video-stream {
     width: 100%;
-    height: 100%;
+    height: auto;
     display: block;
-    object-fit: cover;
-    position: absolute;
-    top: 0;
-    left: 0;
+    object-fit: contain;
 }
 
 .video-overlay {
@@ -802,10 +800,6 @@ body {
     
     .stats-grid {
         grid-template-columns: repeat(2, 1fr);
-    }
-    
-    .video-container {
-        aspect-ratio: 4 / 3;
     }
 }
 
