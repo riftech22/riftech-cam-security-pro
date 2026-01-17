@@ -184,6 +184,11 @@ class SecuritySystem:
         """Main processing loop"""
         logger.info("Processing loop started")
         
+        # Frame skipping to maintain FPS
+        process_every_n_frames = max(1, int(30 / config.camera.fps))  # Target 30 FPS processing
+        self.frame_count = 0
+        last_process_time = time.time()
+        
         while self.running:
             try:
                 start_time = time.time()
@@ -200,15 +205,26 @@ class SecuritySystem:
                     self.bottom_frame = frame_data['bottom']
                     self.frame_count += 1
                     
-                    # Process split frames
-                    processed_frame, detections = self._process_split_frames(
-                        frame_data['top'],
-                        frame_data['bottom'],
-                        frame_data['full']
-                    )
-                    
-                    # Write shared frame for web server
-                    self._write_shared_frame(processed_frame)
+                    # Skip processing to maintain FPS
+                    if self.frame_count % process_every_n_frames == 0:
+                        # Process split frames
+                        processed_frame, detections = self._process_split_frames(
+                            frame_data['top'],
+                            frame_data['bottom'],
+                            frame_data['full']
+                        )
+                        
+                        # Write shared frame for web server
+                        self._write_shared_frame(processed_frame)
+                        
+                        # Update stats less frequently
+                        self.stats["uptime"] = time.time() - self.start_time
+                        
+                        # Call frame callback
+                        if self.on_new_frame:
+                            self.on_new_frame(processed_frame)
+                        
+                        last_process_time = time.time()
                 else:
                     # Read regular frame
                     frame = self.camera.read()
@@ -219,24 +235,34 @@ class SecuritySystem:
                     self.current_frame = frame
                     self.frame_count += 1
                     
-                    # Process regular frame
-                    processed_frame, detections = self._process_frame(frame)
-                    
-                    # Write shared frame for web server
-                    self._write_shared_frame(processed_frame)
+                    # Skip processing to maintain FPS
+                    if self.frame_count % process_every_n_frames == 0:
+                        # Process regular frame
+                        processed_frame, detections = self._process_frame(frame)
+                        
+                        # Write shared frame for web server
+                        self._write_shared_frame(processed_frame)
+                        
+                        # Update stats
+                        self.stats["uptime"] = time.time() - self.start_time
+                        
+                        # Call frame callback
+                        if self.on_new_frame:
+                            self.on_new_frame(processed_frame)
+                        
+                        last_process_time = time.time()
                 
-                # Update stats
-                self.stats["uptime"] = time.time() - self.start_time
-                
-                # Call frame callback
-                if self.on_new_frame:
-                    self.on_new_frame(processed_frame)
-                
-                # Maintain FPS
+                # Calculate actual FPS
                 elapsed = time.time() - start_time
-                target_time = 1.0 / config.camera.fps
-                if elapsed < target_time:
-                    time.sleep(target_time - elapsed)
+                actual_fps = 1.0 / (time.time() - last_process_time) if time.time() > last_process_time else config.camera.fps
+                
+                # Log FPS every 5 seconds
+                if self.frame_count % (5 * config.camera.fps) == 0:
+                    logger.info(f"Actual FPS: {actual_fps:.1f} | Target: {config.camera.fps} | Frame skip: {process_every_n_frames}")
+                
+                # Small sleep to prevent CPU overload
+                if elapsed < 0.01:
+                    time.sleep(0.01)
                 
             except Exception as e:
                 logger.error(f"Processing error: {e}")
@@ -247,19 +273,20 @@ class SecuritySystem:
     def _write_shared_frame(self, frame: np.ndarray):
         """Write frame to shared file for web server"""
         try:
-            # Encode to JPEG
-            encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 85]
+            # Encode to JPEG with lower quality for faster encoding
+            encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 70]
             _, encoded = cv2.imencode('.jpg', frame, encode_param)
             jpeg_bytes = encoded.tobytes()
             
             # Write to file
             SHARED_FRAME_PATH.write_bytes(jpeg_bytes)
             
-            # Write stats
-            stats = self.get_stats()
-            stats["frame_count"] = self.frame_count
-            stats["fps"] = self._get_fps()
-            SHARED_STATS_PATH.write_text(json.dumps(stats))
+            # Write stats less frequently
+            if self.frame_count % 10 == 0:  # Every 10 frames
+                stats = self.get_stats()
+                stats["frame_count"] = self.frame_count
+                stats["fps"] = self._get_fps()
+                SHARED_STATS_PATH.write_text(json.dumps(stats))
         except Exception as e:
             logger.error(f"Error writing shared frame: {e}")
     
