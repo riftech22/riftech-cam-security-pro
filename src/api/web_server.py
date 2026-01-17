@@ -44,6 +44,9 @@ from ..core.config import config
 from ..core.logger import logger
 from ..database.models import db
 
+# Ensure data directory exists
+Path("data").mkdir(parents=True, exist_ok=True)
+
 # Security settings
 SECRET_KEY = "riftech-security-secret-key-2024-change-in-production"
 ALGORITHM = "HS256"
@@ -239,8 +242,9 @@ app.add_middleware(
 # Mount static files
 app.mount("/static", StaticFiles(directory="web/static"), name="static")
 
-# Global reference to security system
-security_system = None
+# Shared frame file path
+SHARED_FRAME_PATH = Path("data/shared_frame.jpg")
+SHARED_STATS_PATH = Path("data/shared_stats.json")
 
 
 # ========== AUTHENTICATION ENDPOINTS ==========
@@ -288,17 +292,38 @@ async def stream_video():
     """Stream live video with AI detection overlay"""
     
     async def generate():
+        frame_count = 0
         while True:
-            if security_system and security_system.current_frame is not None:
-                frame = security_system.current_frame.copy()
+            try:
+                # Try to read shared frame from file
+                if SHARED_FRAME_PATH.exists():
+                    # Read frame stats to check if updated
+                    if SHARED_STATS_PATH.exists():
+                        stats_data = SHARED_STATS_PATH.read_text()
+                        current_count = int(json.loads(stats_data).get("frame_count", 0))
+                        
+                        # Only read if frame is updated
+                        if current_count > frame_count:
+                            frame_count = current_count
+                            
+                            # Read and send frame
+                            jpeg_bytes = SHARED_FRAME_PATH.read_bytes()
+                            
+                            yield (b'--frame\r\n'
+                                   b'Content-Type: image/jpeg\r\n\r\n' + jpeg_bytes + b'\r\n')
                 
-                # Encode to JPEG
-                jpeg_bytes = encode_frame_to_jpeg(frame)
+                # Fallback: try security_system if available
+                elif security_system and security_system.current_frame is not None:
+                    frame = security_system.current_frame.copy()
+                    jpeg_bytes = encode_frame_to_jpeg(frame)
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + jpeg_bytes + b'\r\n')
                 
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + jpeg_bytes + b'\r\n')
-            
-            await asyncio.sleep(0.033)  # ~30 FPS
+                await asyncio.sleep(0.033)  # ~30 FPS
+                
+            except Exception as e:
+                logger.error(f"Error streaming video: {e}")
+                await asyncio.sleep(0.1)
     
     return StreamingResponse(
         generate(),
@@ -324,14 +349,28 @@ async def get_status(current_user: str = Depends(get_current_user)):
 @app.get("/api/stats")
 async def get_stats(current_user: str = Depends(get_current_user)):
     """Get system statistics"""
-    if not security_system:
-        raise HTTPException(
-            status_code=503,
-            detail="Security system not initialized"
-        )
     
-    stats = security_system.get_stats()
-    return JSONResponse(content=stats)
+    # Try to read from shared file first
+    if SHARED_STATS_PATH.exists():
+        try:
+            stats_data = json.loads(SHARED_STATS_PATH.read_text())
+            return JSONResponse(content=stats_data)
+        except Exception as e:
+            logger.error(f"Error reading shared stats: {e}")
+    
+    # Fallback to security_system
+    if security_system:
+        stats = security_system.get_stats()
+        return JSONResponse(content=stats)
+    
+    # Return default stats
+    return JSONResponse(content={
+        "fps": 0,
+        "persons": 0,
+        "trusted": 0,
+        "unknown": 0,
+        "breaches": 0
+    })
 
 
 @app.post("/api/mode", response_model=dict)

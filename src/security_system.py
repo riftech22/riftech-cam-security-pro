@@ -8,6 +8,7 @@ import numpy as np
 import time
 import threading
 import asyncio
+import json
 from typing import Optional, List, Dict, Callable
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +16,13 @@ from pathlib import Path
 from .core.config import config
 from .core.logger import logger
 from .database.models import db
+
+# Shared frame paths for web server
+SHARED_FRAME_PATH = Path("data/shared_frame.jpg")
+SHARED_STATS_PATH = Path("data/shared_stats.json")
+
+# Ensure data directory exists
+Path("data").mkdir(parents=True, exist_ok=True)
 from .detection.yolo_detector import YOLODetector
 from .detection.skeleton_detector import SkeletonDetector
 from .detection.face_detector import FaceDetector
@@ -198,6 +206,9 @@ class SecuritySystem:
                         frame_data['bottom'],
                         frame_data['full']
                     )
+                    
+                    # Write shared frame for web server
+                    self._write_shared_frame(processed_frame)
                 else:
                     # Read regular frame
                     frame = self.camera.read()
@@ -210,6 +221,9 @@ class SecuritySystem:
                     
                     # Process regular frame
                     processed_frame, detections = self._process_frame(frame)
+                    
+                    # Write shared frame for web server
+                    self._write_shared_frame(processed_frame)
                 
                 # Update stats
                 self.stats["uptime"] = time.time() - self.start_time
@@ -229,6 +243,25 @@ class SecuritySystem:
                 time.sleep(0.1)
         
         logger.info("Processing loop stopped")
+    
+    def _write_shared_frame(self, frame: np.ndarray):
+        """Write frame to shared file for web server"""
+        try:
+            # Encode to JPEG
+            encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 85]
+            _, encoded = cv2.imencode('.jpg', frame, encode_param)
+            jpeg_bytes = encoded.tobytes()
+            
+            # Write to file
+            SHARED_FRAME_PATH.write_bytes(jpeg_bytes)
+            
+            # Write stats
+            stats = self.get_stats()
+            stats["frame_count"] = self.frame_count
+            stats["fps"] = self._get_fps()
+            SHARED_STATS_PATH.write_text(json.dumps(stats))
+        except Exception as e:
+            logger.error(f"Error writing shared frame: {e}")
     
     def _process_frame(self, frame: np.ndarray) -> tuple:
         """
