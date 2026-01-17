@@ -36,7 +36,7 @@ def setup_logger(name: str = "riftech-security") -> logging.Logger:
     
     # File handler with rotation
     if config.logging.file_enabled:
-        log_file = config.paths.logs_dir / f"{name}.log"
+        log_file = Path(config.paths.logs_dir) / f"{name}.log"
         file_handler = RotatingFileHandler(
             log_file,
             maxBytes=config.logging.max_file_size,
