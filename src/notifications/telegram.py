@@ -521,7 +521,7 @@ class TelegramNotifier:
         try:
             # Save frame
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            screenshot_path = config.paths.snapshots_dir / f"screenshot_{timestamp}.jpg"
+            screenshot_path = Path(config.paths.snapshots_dir) / f"screenshot_{timestamp}.jpg"
             
             cv2 = __import__('cv2')
             cv2.imwrite(str(screenshot_path), self.security_system.current_frame)

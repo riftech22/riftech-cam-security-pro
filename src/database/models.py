@@ -18,7 +18,7 @@ class DatabaseManager:
     """Database manager with async operations"""
     
     def __init__(self):
-        self.db_path = config.paths.base_dir / config.database.path
+        self.db_path = Path(config.paths.base_dir) / config.database.path
         self._lock = asyncio.Lock()
         self._initialized = False
     

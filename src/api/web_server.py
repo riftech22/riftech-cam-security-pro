@@ -673,7 +673,7 @@ async def get_alerts(
 @app.get("/api/alerts/{alert_name}")
 async def get_alert_image(alert_name: str):
     """Get alert image"""
-    alert_path = config.paths.alerts_dir / alert_name
+    alert_path = Path(config.paths.alerts_dir) / alert_name
     
     if not alert_path.exists():
         raise HTTPException(

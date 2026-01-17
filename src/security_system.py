@@ -528,7 +528,7 @@ class SecuritySystem:
         
         # Save alert image
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        alert_path = config.paths.alerts_dir / f"breach_{timestamp}.jpg"
+        alert_path = Path(config.paths.alerts_dir) / f"breach_{timestamp}.jpg"
         cv2.imwrite(str(alert_path), frame)
         
         # Log event
