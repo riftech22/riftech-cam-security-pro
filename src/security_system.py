@@ -130,9 +130,9 @@ class SecuritySystem:
             raise RuntimeError("Failed to initialize camera")
         
         # Create directories
-        config.paths.alerts_dir.mkdir(parents=True, exist_ok=True)
-        config.paths.snapshots_dir.mkdir(parents=True, exist_ok=True)
-        config.paths.recordings_dir.mkdir(parents=True, exist_ok=True)
+        Path(config.paths.alerts_dir).mkdir(parents=True, exist_ok=True)
+        Path(config.paths.snapshots_dir).mkdir(parents=True, exist_ok=True)
+        Path(config.paths.recordings_dir).mkdir(parents=True, exist_ok=True)
         
         logger.info("Security System initialized successfully")
     
