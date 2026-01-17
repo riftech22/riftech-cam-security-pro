@@ -126,7 +126,7 @@ class ConfigUpdate(BaseModel):
 
 
 class ZoneCreate(BaseModel):
-    points: List[List[int]] = Field(..., min_items=3)
+    points: List[List[int]] = Field(..., min_length=3)
     armed: bool = True
     name: Optional[str] = None
 
@@ -141,7 +141,7 @@ class FaceUpload(BaseModel):
 
 
 class ModeChange(BaseModel):
-    mode: str = Field(..., regex="^(normal|armed|alerted)$")
+    mode: str = Field(..., pattern="^(normal|armed|alerted)$")
 
 
 # ========== UTILITY FUNCTIONS ==========
