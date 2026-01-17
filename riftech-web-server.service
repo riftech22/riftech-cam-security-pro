@@ -1,6 +1,6 @@
 [Unit]
-Description=Riftech Security System - AI-Powered Security Camera
-After=network.target
+Description=Riftech Security System - Web Interface
+After=network.target riftech-security.service
 Wants=network-online.target
 
 [Service]
@@ -9,12 +9,12 @@ User=pi
 Group=pi
 WorkingDirectory=/home/riftech/project/riftech-cam-security-pro
 Environment="PATH=/home/riftech/project/riftech-cam-security-pro/venv/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/home/riftech/project/riftech-cam-security-pro/venv/bin/python /home/riftech/project/riftech-cam-security-pro/main.py
+ExecStart=/home/riftech/project/riftech-cam-security-pro/venv/bin/python -m uvicorn src.api.web_server:app --host 0.0.0.0 --port 8000 --log-level info --access-log
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=riftech-security
+SyslogIdentifier=riftech-web-server
 
 # Security settings
 NoNewPrivileges=true
