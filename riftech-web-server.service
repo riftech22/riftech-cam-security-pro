@@ -5,20 +5,17 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-Group=pi
-WorkingDirectory=/home/riftech/project/riftech-cam-security-pro
-Environment="PATH=/home/riftech/project/riftech-cam-security-pro/venv/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/home/riftech/project/riftech-cam-security-pro/venv/bin/python -m uvicorn src.api.web_server:app --host 0.0.0.0 --port 8000 --log-level info --access-log
+User=root
+Group=root
+WorkingDirectory=/root/riftech-cam-security-pro
+Environment="PATH=/root/riftech-cam-security-pro/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/root/riftech-cam-security-pro/venv/bin/python -m uvicorn src.api.web_server:app --host 0.0.0.0 --port 8000 --log-level info --access-log
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=riftech-web-server
-
-# Security settings
-NoNewPrivileges=true
-PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
