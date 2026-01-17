@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Riftech Security System - Dashboard</title>
+    <link rel="stylesheet" href="/static/css/cyber-neon.css">
+    <style>
+        /* Additional dashboard-specific styles */
+        .detection-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid var(--neon-cyan);
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 12px;
+            color: var(--neon-cyan);
+            z-index: 10;
+        }
+        
+        .zone-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: auto;
+        }
+        
+        .alert-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            background: rgba(17, 17, 25, 0.9);
+            border: 1px solid var(--neon-red);
+            border-radius: 5px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .alert-item img {
+            width: 80px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 5px;
+            border: 1px solid var(--neon-red);
+        }
+        
+        .alert-info {
+            flex: 1;
+        }
+        
+        .alert-time {
+            color: var(--neon-cyan);
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        
+        .alert-message {
+            color: var(--neon-red);
+            font-size: 14px;
+        }
+        
+        .face-item {
+            display: flex;
+            gap: 15px;
+            padding: 15px;
+            background: rgba(17, 17, 25, 0.9);
+            border: 1px solid var(--neon-green);
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        
+        .face-item img {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 5px;
+            border: 1px solid var(--neon-green);
+        }
+        
+        .face-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .face-name {
+            color: var(--neon-green);
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .zone-item {
+            padding: 15px;
+            background: rgba(17, 17, 25, 0.9);
+            border: 1px solid var(--neon-green);
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        
+        .zone-name {
+            color: var(--neon-green);
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .zone-status {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        
+        .zone-armed {
+            background: rgba(255, 0, 0, 0.2);
+            color: var(--neon-red);
+        }
+        
+        .zone-disarmed {
+            background: rgba(0, 255, 65, 0.2);
+            color: var(--neon-green);
+        }
+        
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--neon-green);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--neon-cyan);
+        }
+    </style>
+</head>
+<body>
+    <!-- Background Effects -->
+    <div class="scanlines"></div>
+    <div class="grid-bg"></div>
+    
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="navbar-brand">
+            Riftech <span>Security</span>
+        </div>
+        <ul class="navbar-menu">
+            <li><a href="#dashboard" class="active" data-tab="dashboard">Dashboard</a></li>
+            <li><a href="#config" data-tab="config">Configuration</a></li>
+            <li><a href="#zones" data-tab="zones">Zones</a></li>
+            <li><a href="#faces" data-tab="faces">Faces</a></li>
+            <li><a href="#alerts" data-tab="alerts">Alerts</a></li>
+        </ul>
+        <div class="navbar-user">
+            <span id="username" class="text-cyan">admin</span>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+    </nav>
+    
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Dashboard Tab -->
+        <div id="dashboard" class="tab-content active">
+            <!-- Mode Buttons -->
+            <div class="mode-buttons">
+                <button class="mode-btn mode-normal" data-mode="normal">NORMAL</button>
+                <button class="mode-btn mode-armed" data-mode="armed">ARMED</button>
+                <button class="mode-btn mode-alerted" data-mode="alerted">ALERTED</button>
+            </div>
+            
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="fps">0</div>
+                    <div class="stat-label">FPS</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="persons">0</div>
+                    <div class="stat-label">Persons</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="trusted">0</div>
+                    <div class="stat-label">Trusted</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="unknown">0</div>
+                    <div class="stat-label">Unknown</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="breaches">0</div>
+                    <div class="stat-label">Breaches</div>
+                </div>
+            </div>
+            
+            <!-- Dashboard Grid -->
+            <div class="dashboard-grid">
+                <!-- Video Stream -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Live Preview</h3>
+                        <div class="card-actions">
+                            <button class="btn btn-secondary btn-sm" onclick="captureSnapshot()">Snapshot</button>
+                        </div>
+                    </div>
+                    <div class="video-container">
+                        <img id="videoStream" class="video-stream" src="/api/stream" alt="Live Stream">
+                        <canvas id="zoneCanvas" class="zone-canvas"></canvas>
+                        <div class="detection-info">
+                            <div>Mode: <span id="currentMode">Normal</span></div>
+                            <div>FPS: <span id="videoFps">0</span></div>
+                        </div>
+                        <div class="video-controls">
+                            <div class="video-info">
+                                <span>Resolution: <span id="resolution">1280x720</span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Recent Alerts -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Recent Alerts</h3>
+                    </div>
+                    <div id="recentAlerts" style="max-height: 400px; overflow-y: auto;">
+                        <p class="text-muted">No recent alerts</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Configuration Tab -->
+        <div id="config" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">System Configuration</h3>
+                    <div class="card-actions">
+                        <button class="btn btn-primary" onclick="saveConfig()">Save Configuration</button>
+                    </div>
+                </div>
+                
+                <div class="tabs">
+                    <button class="tab active" data-subtab="camera">Camera</button>
+                    <button class="tab" data-subtab="detection">Detection</button>
+                    <button class="tab" data-subtab="alerts">Alerts</button>
+                    <button class="tab" data-subtab="system">System</button>
+                </div>
+                
+                <!-- Camera Config -->
+                <div id="camera" class="subtab-content active">
+                    <div class="form-group">
+                        <label class="form-label">Camera Type</label>
+                        <select class="form-select" id="cameraType">
+                            <option value="rtsp">RTSP Camera</option>
+                            <option value="usb">USB Camera</option>
+                            <option value="v380_split">V380 Split Camera</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">RTSP URL</label>
+                        <input type="text" class="form-input" id="rtspUrl" placeholder="rtsp://admin:password@192.168.1.100:554/stream1">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">USB Camera ID</label>
+                        <input type="number" class="form-input" id="cameraId" value="0" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Width</label>
+                        <input type="number" class="form-input" id="width" value="1280" min="320">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Height</label>
+                        <input type="number" class="form-input" id="height" value="720" min="240">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">FPS</label>
+                        <input type="number" class="form-input" id="fps" value="15" min="1" max="60">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Detection FPS</label>
+                        <input type="number" class="form-input" id="detectFps" value="5" min="1" max="30">
+                    </div>
+                </div>
+                
+                <!-- Detection Config -->
+                <div id="detection" class="subtab-content">
+                    <div class="form-group">
+                        <label class="form-label">YOLO Confidence: <span id="yoloConfValue">0.20</span></label>
+                        <input type="range" class="form-range" id="yoloConfidence" min="0.01" max="1.0" step="0.01" value="0.20" oninput="document.getElementById('yoloConfValue').textContent = this.value">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">YOLO Model</label>
+                        <select class="form-select" id="yoloModel">
+                            <option value="yolov8n.pt">YOLOv8n (Fast)</option>
+                            <option value="yolov8s.pt">YOLOv8s (Balanced)</option>
+                            <option value="yolov8m.pt">YOLOv8m (Accurate)</option>
+                            <option value="yolov8l.pt">YOLOv8l (Very Accurate)</option>
+                            <option value="yolov8x.pt">YOLOv8x (Ultra Accurate)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Face Tolerance: <span id="faceTolValue">0.6</span></label>
+                        <input type="range" class="form-range" id="faceTolerance" min="0.0" max="1.0" step="0.1" value="0.6" oninput="document.getElementById('faceTolValue').textContent = this.value">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Motion Threshold: <span id="motionThreshValue">15</span></label>
+                        <input type="range" class="form-range" id="motionThreshold" min="1" max="50" step="1" value="15" oninput="document.getElementById('motionThreshValue').textContent = this.value">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Motion Min Area: <span id="motionAreaValue">500</span></label>
+                        <input type="range" class="form-range" id="motionMinArea" min="100" max="5000" step="100" value="500" oninput="document.getElementById('motionAreaValue').textContent = this.value">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Enable Skeleton Detection</label>
+                        <input type="checkbox" class="form-checkbox" id="skeletonEnabled" checked>
+                    </div>
+                </div>
+                
+                <!-- Alerts Config -->
+                <div id="alerts" class="subtab-content">
+                    <div class="form-group">
+                        <label class="form-label">Enable Telegram Notifications</label>
+                        <input type="checkbox" class="form-checkbox" id="telegramEnabled">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Telegram Bot Token</label>
+                        <input type="text" class="form-input" id="telegramBotToken" placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Telegram Chat ID</label>
+                        <input type="text" class="form-input" id="telegramChatId" placeholder="Your Telegram Chat ID">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Alert Cooldown (seconds)</label>
+                        <input type="number" class="form-input" id="cooldownSeconds" value="5" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Snapshot on Alert</label>
+                        <input type="checkbox" class="form-checkbox" id="snapshotOnAlert" checked>
+                    </div>
+                </div>
+                
+                <!-- System Config -->
+                <div id="system" class="subtab-content">
+                    <div class="form-group">
+                        <label class="form-label">Default Mode</label>
+                        <select class="form-select" id="defaultMode">
+                            <option value="normal">Normal</option>
+                            <option value="armed">Armed</option>
+                            <option value="alerted">Alerted</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Enable GPU</label>
+                        <input type="checkbox" class="form-checkbox" id="enableGpu" checked>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Thread Count</label>
+                        <input type="number" class="form-input" id="threadCount" value="4" min="1" max="16">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Log Level</label>
+                        <select class="form-select" id="logLevel">
+                            <option value="DEBUG">Debug</option>
+                            <option value="INFO">Info</option>
+                            <option value="WARNING">Warning</option>
+                            <option value="ERROR">Error</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Zones Tab -->
+        <div id="zones" class="tab-content">
+            <div class="dashboard-grid">
+                <!-- Zone List -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Security Zones</h3>
+                        <div class="card-actions">
+                            <button class="btn btn-danger" onclick="clearAllZones()">Clear All</button>
+                        </div>
+                    </div>
+                    <div id="zonesList" style="max-height: 500px; overflow-y: auto;">
+                        <p class="text-muted">No zones defined</p>
+                    </div>
+                </div>
+                
+                <!-- Zone Editor -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Zone Editor</h3>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Zone Name</label>
+                        <input type="text" class="form-input" id="zoneName" placeholder="Enter zone name">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Armed</label>
+                        <input type="checkbox" class="form-checkbox" id="zoneArmed" checked>
+                    </div>
+                    <div class="form-group">
+                        <button class="btn btn-success" onclick="saveZone()">Save Zone</button>
+                    </div>
+                    <div class="form-group">
+                        <button class="btn btn-secondary" onclick="clearZoneEditor()">Clear Points</button>
+                    </div>
+                    <div id="zonePoints" class="text-muted" style="font-size: 12px;">
+                        Click on the video to define zone points (minimum 3 points)
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Faces Tab -->
+        <div id="faces" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Trusted Faces</h3>
+                    <div class="card-actions">
+                        <button class="btn btn-success" onclick="document.getElementById('faceUpload').click()">Upload Face</button>
+                        <input type="file" id="faceUpload" accept="image/*" style="display: none;" onchange="uploadFace()">
+                    </div>
+                </div>
+                <div id="facesList" style="max-height: 600px; overflow-y: auto;">
+                    <p class="text-muted">No trusted faces</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Alerts Tab -->
+        <div id="alerts" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Alert History</h3>
+                    <div class="card-actions">
+                        <button class="btn btn-secondary" onclick="loadAlerts()">Refresh</button>
+                    </div>
+                </div>
+                <div id="alertsList" style="max-height: 600px; overflow-y: auto;">
+                    <p class="text-muted">No alerts</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- JavaScript -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

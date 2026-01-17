@@ -1,0 +1,47 @@
+# Riftech Security System - Python Dependencies
+# AI-powered security camera system
+
+# Core dependencies
+numpy>=1.24.0
+opencv-python>=4.8.0
+opencv-contrib-python>=4.8.0
+
+# AI/ML
+ultralytics>=8.0.0
+mediapipe>=0.10.0
+face-recognition>=1.3.0
+dlib>=19.24.0
+
+# Async database
+aiosqlite>=0.19.0
+
+# Async HTTP client (for Telegram)
+aiohttp>=3.9.0
+
+# Web server
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+websockets>=12.0
+
+# Telegram bot
+python-telegram-bot>=20.7
+
+# Web server authentication
+pydantic>=2.0.0
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-multipart>=0.0.6
+
+# Utilities
+python-dateutil>=2.8.2
+pillow>=10.0.0
+pyyaml>=6.0
+
+# Logging
+colorlog>=6.8.0
+
+# Development dependencies (optional)
+# pytest>=7.4.0
+# pytest-asyncio>=0.21.0
+# black>=23.0.0
+# flake8>=6.0.0

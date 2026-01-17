@@ -1,0 +1,92 @@
+# Riftech Security System Configuration Template
+# Copy this file to config.yaml and edit with your settings
+
+camera:
+  # Camera type: 'rtsp' for IP cameras, 'usb' for webcams, 'v380_split' for V380 dual-view cameras
+  type: rtsp
+  
+  # RTSP Settings (for type: rtsp)
+  # Format: rtsp://username:password@ip_address:port/stream_path
+  rtsp_url: "rtsp://admin:password@192.168.1.100:554/stream1"
+  
+  # USB Camera Settings (for type: usb)
+  camera_id: 0
+  
+  # Camera resolution and framerate
+  width: 1280
+  height: 720
+  fps: 15
+  
+  # V380 Split Camera Settings (for type: v380_split)
+  # These cameras send 2 views (top/bottom) in a single frame
+  # The system will automatically split and process each view separately
+  split_enabled: false  # Set to true if using v380_split type
+  detect_fps: 5  # Target FPS for detection (lower = less CPU usage)
+
+detection:
+  # YOLO person detection
+  yolo_confidence: 0.20  # Lower = more detections, higher = fewer
+  yolo_model: "yolov8n.pt"  # Options: yolov8n.pt, yolov8s.pt, yolov8m.pt, yolov8l.pt
+  
+  # Face recognition
+  face_tolerance: 0.6  # Lower = stricter (0.4-0.8)
+  
+  # Motion detection
+  motion_threshold: 15  # Sensitivity (0-255)
+  motion_min_area: 500  # Minimum pixels for motion
+  
+  # Skeleton detection
+  skeleton_enabled: true
+
+paths:
+  # Base directory for all data
+  base_dir: "data"
+  
+  # Data directories
+  recordings_dir: "data/recordings"
+  alerts_dir: "data/alerts"
+  snapshots_dir: "data/snapshots"
+  logs_dir: "data/logs"
+  trusted_faces_dir: "data/trusted_faces"
+  fixed_images_dir: "data/fixed_images"
+
+database:
+  # SQLite database path
+  path: "data/security_system.db"
+  
+  # Automatic cleanup
+  cleanup_days: 30  # Delete events older than 30 days
+
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: INFO
+  
+  # Log format
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  # Output settings
+  console_enabled: true
+  file_enabled: true
+  
+  # File rotation (prevents large log files)
+  max_file_size: 10485760  # 10MB in bytes
+  backup_count: 5
+
+alerts:
+  # Alert behavior
+  cooldown_seconds: 5  # Minimum time between alerts
+  snapshot_on_alert: true
+  recording_duration: 30  # Seconds to record on alert
+  
+  # Telegram notifications (optional)
+  telegram_enabled: false
+  telegram_bot_token: "YOUR_BOT_TOKEN_HERE"
+  telegram_chat_id: "YOUR_CHAT_ID_HERE"
+
+system:
+  # Startup mode: normal, armed, alerted
+  default_mode: normal
+  
+  # Performance settings
+  enable_gpu: true  # Auto-detect and use GPU if available
+  thread_count: 4  # Number of processing threads

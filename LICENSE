@@ -1,0 +1,68 @@
+RIFTECH SECURITY SYSTEM - PROPRIETARY SOFTWARE LICENSE
+
+Copyright (c) 2024 Riftech. All rights reserved.
+
+This software is proprietary and confidential. It is licensed for use only to
+authorized users and organizations who have obtained a valid license from Riftech.
+
+GRANT OF LICENSE
+
+Riftech grants you a non-exclusive, non-transferable license to use the Riftech
+Security System software (the "Software") in accordance with the terms of this
+Agreement.
+
+RESTRICTIONS
+
+You may NOT:
+- Reverse engineer, decompile, or disassemble the Software
+- Copy, modify, or create derivative works of the Software
+- Distribute, sell, or transfer the Software to third parties
+- Remove or alter any proprietary notices or labels on the Software
+- Use the Software for any illegal or unauthorized purpose
+
+DISCLAIMER OF WARRANTY
+
+The Software is provided "AS IS" without warranty of any kind, express or implied,
+including but not limited to warranties of merchantability, fitness for a particular
+purpose, and non-infringement.
+
+LIMITATION OF LIABILITY
+
+In no event shall Riftech be liable for any direct, indirect, incidental, special,
+exemplary, or consequential damages (including, but not limited to, procurement of
+substitute goods or services; loss of use, data, or profits; or business
+interruption) however caused and on any theory of liability, whether in contract,
+strict liability, or tort (including negligence or otherwise) arising in any way out
+of the use of this Software, even if advised of the possibility of such damage.
+
+THIRD-PARTY SOFTWARE
+
+This Software includes third-party components that are licensed under their respective
+licenses. These components include:
+
+- YOLOv8 (Ultralytics) - GPL-3.0 license
+- MediaPipe (Google) - Apache 2.0 license
+- OpenCV - Apache 2.0 license
+- face-recognition library - MIT license
+
+By using this Software, you agree to comply with the terms of these third-party
+licenses.
+
+INTELLECTUAL PROPERTY
+
+All intellectual property rights in the Software, including patents, copyrights,
+trademarks, and trade secrets, are owned by Riftech.
+
+TERMINATION
+
+This Agreement is effective until terminated. Your rights under this Agreement will
+terminate automatically without notice if you fail to comply with any of its terms.
+
+GOVERNING LAW
+
+This Agreement shall be governed by and construed in accordance with the laws of
+Indonesia.
+
+For licensing information, contact:
+Email: license@riftech.com
+Website: https://riftech.com

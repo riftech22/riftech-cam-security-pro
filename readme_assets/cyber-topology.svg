@@ -1,0 +1,131 @@
+<svg width="1000" height="800" viewBox="0 0 1000 800" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="neonGreen"><stop offset="0%" stop-color="#00ff41"/><stop offset="100%" stop-color="#00ff00"/></linearGradient>
+    <linearGradient id="neonCyan"><stop offset="0%" stop-color="#00ffff"/><stop offset="100%" stop-color="#00e5ff"/></linearGradient>
+    <linearGradient id="neonPink"><stop offset="0%" stop-color="#ff00ff"/><stop offset="100%" stop-color="#ff0080"/></linearGradient>
+    <linearGradient id="neonPurple"><stop offset="0%" stop-color="#8b00ff"/><stop offset="100%" stop-color="#6a00ff"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="3"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#00ffff"/>
+    </marker>
+  </defs>
+  
+  <rect width="1000" height="800" fill="#0a0a0f"/>
+  
+  <- Systemd Title -->
+  <text x="500" y="30" font-family="Arial, sans-serif" font-size="24" fill="url(#neonCyan)" text-anchor="middle" font-weight="bold" filter="url(#glow)">⚡ ALUR KERJA RIFTECH SECURITY SYSTEM ⚡</text>
+  
+  <- Systemd Step 1: Camera -->
+  <g transform="translate(50, 80)">
+    <rect width="180" height="100" rx="10" fill="#0a0a0f" stroke="url(#neonGreen)" stroke-width="3" filter="url(#glow)"/>
+    <text x="90" y="30" font-family="Arial, sans-serif" font-size="16" fill="#00ff41" text-anchor="middle" font-weight="bold">STEP 1</text>
+    <text x="90" y="55" font-family="Arial, sans-serif" font-size="14" fill="#00ff41" text-anchor="middle">📹 CAMERA</text>
+    <text x="90" y="75" font-family="Arial, sans-serif" font-size="11" fill="#00ff41" text-anchor="middle">RTSP / USB / V380</text>
+    <text x="90" y="90" font-family="Arial, sans-serif" font-size="10" fill="#00ff41" text-anchor="middle" opacity="0.7">Ambil video stream</text>
+  </g>
+  
+  <- Systemd Arrow 1 -->
+  <line x1="230" y1="130" x2="280" y2="130" stroke="#00ffff" stroke-width="3" marker-end="url(#arrowhead)"/>
+  
+  <- Systemd Step 2: FFmpeg -->
+  <g transform="translate(290, 80)">
+    <rect width="180" height="100" rx="10" fill="#0a0a0f" stroke="url(#neonCyan)" stroke-width="3" filter="url(#glow)"/>
+    <text x="90" y="30" font-family="Arial, sans-serif" font-size="16" fill="#00ffff" text-anchor="middle" font-weight="bold">STEP 2</text>
+    <text x="90" y="55" font-family="Arial, sans-serif" font-size="14" fill="#00ffff" text-anchor="middle">⚙️ FFMPEG</text>
+    <text x="90" y="75" font-family="Arial, sans-serif" font-size="11" fill="#00ffff" text-anchor="middle">Video Processing</text>
+    <text x="90" y="90" font-family="Arial, sans-serif" font-size="10" fill="#00ffff" text-anchor="middle" opacity="0.7">Process stream ke frame</text>
+  </g>
+  
+  <- Systemd Arrow 2 -->
+  <line x1="470" y1="130" x2="520" y2="130" stroke="#8b00ff" stroke-width="3" marker-end="url(#arrowhead)"/>
+  
+  <- Systemd Step 3: AI Detection -->
+  <g transform="translate(530, 80)">
+    <rect width="180" height="100" rx="10" fill="#0a0a0f" stroke="url(#neonPurple)" stroke-width="3" filter="url(#glow)"/>
+    <text x="90" y="30" font-family="Arial, sans-serif" font-size="16" fill="#8b00ff" text-anchor="middle" font-weight="bold">STEP 3</text>
+    <text x="90" y="55" font-family="Arial, sans-serif" font-size="14" fill="#8b00ff" text-anchor="middle">🤖 AI DETECTION</text>
+    <text x="90" y="75" font-family="Arial, sans-serif" font-size="11" fill="#8b00ff" text-anchor="middle">YOLO / Face / Motion</text>
+    <text x="90" y="90" font-family="Arial, sans-serif" font-size="10" fill="#8b00ff" text-anchor="middle" opacity="0.7">Deteksi objek & wajah</text>
+  </g>
+  
+  <- Systemd Arrow 3 -->
+  <line x1="710" y1="130" x2="760" y2="130" stroke="#ff00ff" stroke-width="3" marker-end="url(#arrowhead)"/>
+  
+  <- Systemd Step 4: Database -->
+  <g transform="translate(770, 80)">
+    <rect width="180" height="100" rx="10" fill="#0a0a0f" stroke="url(#neonPink)" stroke-width="3" filter="url(#glow)"/>
+    <text x="90" y="30" font-family="Arial, sans-serif" font-size="16" fill="#ff00ff" text-anchor="middle" font-weight="bold">STEP 4</text>
+    <text x="90" y="55" font-family="Arial, sans-serif" font-size="14" fill="#ff00ff" text-anchor="middle">💾 DATABASE</text>
+    <text x="90" y="75" font-family="Arial, sans-serif" font-size="11" fill="#ff00ff" text-anchor="middle">SQLite Storage</text>
+    <text x="90" y="90" font-family="Arial, sans-serif" font-size="10" fill="#ff00ff" text-anchor="middle" opacity="0.7">Simpan semua data</text>
+  </g>
+  
+  <- Systemd Vertical Arrow Down -->
+  <line x1="860" y1="180" x2="860" y2="230" stroke="#00ff41" stroke-width="3" marker-end="url(#arrowhead)"/>
+  
+  <- Systemd Step 5: Notifications -->
+  <g transform="translate(770, 240)">
+    <rect width="180" height="100" rx="10" fill="#0a0a0f" stroke="url(#neonGreen)" stroke-width="3" filter="url(#glow)"/>
+    <text x="90" y="30" font-family="Arial, sans-serif" font-size="16" fill="#00ff41" text-anchor="middle" font-weight="bold">STEP 5</text>
+    <text x="90" y="55" font-family="Arial, sans-serif" font-size="14" fill="#00ff41" text-anchor="middle">📱 NOTIFIKASI</text>
+    <text x="90" y="75" font-family="Arial, sans-serif" font-size="11" fill="#00ff41" text-anchor="middle">Telegram Alerts</text>
+    <text x="90" y="90" font-family="Arial, sans-serif" font-size="10" fill="#00ff41" text-anchor="middle" opacity="0.7">Kirim alert ke HP</text>
+  </g>
+  
+  <- Systemd Horizontal Line Separation -->
+  <line x1="50" y1="380" x2="950" y2="380" stroke="#00ff41" stroke-width="2" stroke-dasharray="5,5" opacity="0.5"/>
+  <text x="500" y="400" font-family="Arial, sans-serif" font-size="12" fill="#00ff41" text-anchor="middle" opacity="0.7">DATA FLOW KE WEB INTERFACE</text>
+  
+  <- Systemd Step 6: Web Server -->
+  <g transform="translate(50, 430)">
+    <rect width="400" height="120" rx="10" fill="#0a0a0f" stroke="url(#neonCyan)" stroke-width="3" filter="url(#glow)"/>
+    <text x="200" y="30" font-family="Arial, sans-serif" font-size="16" fill="#00ffff" text-anchor="middle" font-weight="bold">STEP 6</text>
+    <text x="200" y="55" font-family="Arial, sans-serif" font-size="14" fill="#00ffff" text-anchor="middle">🌐 WEB SERVER (FastAPI)</text>
+    <text x="200" y="80" font-family="Arial, sans-serif" font-size="11" fill="#00ffff" text-anchor="middle">JWT Auth • REST API • WebSocket • Video Stream</text>
+    <text x="200" y="100" font-family="Arial, sans-serif" font-size="10" fill="#00ffff" text-anchor="middle" opacity="0.7">Port: 8000 - Backend server</text>
+  </g>
+  
+  <- Systemd Arrows from AI and DB to Web Server -->
+  <line x1="620" y1="130" x2="620" y2="430" stroke="#8b00ff" stroke-width="3" marker-end="url(#arrowhead)" stroke-dasharray="5,3"/>
+  <line x1="860" y1="340" x2="860" y2="430" stroke="#ff00ff" stroke-width="3" marker-end="url(#arrowhead)" stroke-dasharray="5,3"/>
+  
+  <- Systemd Arrow from Web Server to Frontend -->
+  <line x1="450" y1="490" x2="500" y2="490" stroke="#00ffff" stroke-width="3" marker-end="url(#arrowhead)"/>
+  
+  <- Systemd Step 7: Frontend -->
+  <g transform="translate(510, 430)">
+    <rect width="400" height="120" rx="10" fill="#0a0a0f" stroke="url(#neonPink)" stroke-width="3" filter="url(#glow)"/>
+    <text x="200" y="30" font-family="Arial, sans-serif" font-size="16" fill="#ff00ff" text-anchor="middle" font-weight="bold">STEP 7</text>
+    <text x="200" y="55" font-family="Arial, sans-serif" font-size="14" fill="#ff00ff" text-anchor="middle">🎨 FRONTEND (Cyber Neon)</text>
+    <text x="200" y="80" font-family="Arial, sans-serif" font-size="11" fill="#ff00ff" text-anchor="middle">Dashboard • Live Video • Zone Editor • Face Mgmt</text>
+    <text x="200" y="100" font-family="Arial, sans-serif" font-size="10" fill="#ff00ff" text-anchor="middle" opacity="0.7">Web interface user</text>
+  </g>
+  
+  <- Systemd Vertical Arrow Down to Mobile -->
+  <line x1="710" y1="550" x2="710" y2="600" stroke="#00ff41" stroke-width="3" marker-end="url(#arrowhead)"/>
+  
+  <- Systemd Step 8: Mobile Access -->
+  <g transform="translate(510, 610)">
+    <rect width="400" height="120" rx="10" fill="#0a0a0f" stroke="url(#neonGreen)" stroke-width="3" filter="url(#glow)"/>
+    <text x="200" y="30" font-family="Arial, sans-serif" font-size="16" fill="#00ff41" text-anchor="middle" font-weight="bold">STEP 8</text>
+    <text x="200" y="55" font-family="Arial, sans-serif" font-size="14" fill="#00ff41" text-anchor="middle">🌍 MOBILE ACCESS (Cloudflared)</text>
+    <text x="200" y="80" font-family="Arial, sans-serif" font-size="11" fill="#00ff41" text-anchor="middle">HTTPS Tunnel • No Port Forwarding • Global Access</text>
+    <text x="200" y="100" font-family="Arial, sans-serif" font-size="10" fill="#00ff41" text-anchor="middle" opacity="0.7">Akses dari mana saja</text>
+  </g>
+  
+  <- Systemd Legend -->
+  <g transform="translate(50, 760)">
+    <text x="0" y="15" font-family="Arial, sans-serif" font-size="12" fill="#00ff41" font-weight="bold">LEGEND:</text>
+    <rect x="80" y="5" width="15" height="15" fill="none" stroke="#00ff41" stroke-width="2"/>
+    <text x="105" y="17" font-family="Arial, sans-serif" font-size="10" fill="#00ff41">Input/Data</text>
+    <rect x="200" y="5" width="15" height="15" fill="none" stroke="#00ffff" stroke-width="2"/>
+    <text x="225" y="17" font-family="Arial, sans-serif" font-size="10" fill="#00ffff">Processing</text>
+    <rect x="310" y="5" width="15" height="15" fill="none" stroke="#8b00ff" stroke-width="2"/>
+    <text x="335" y="17" font-family="Arial, sans-serif" font-size="10" fill="#8b00ff">AI Detection</text>
+    <rect x="440" y="5" width="15" height="15" fill="none" stroke="#ff00ff" stroke-width="2"/>
+    <text x="465" y="17" font-family="Arial, sans-serif" font-size="10" fill="#ff00ff">Storage/UI</text>
+  </g>
+  
+  <- Systemd Footer -->
+  <text x="500" y="790" font-family="Arial, sans-serif" font-size="11" fill="#00ff41" text-anchor="middle" opacity="0.7">Built with Python, FastAPI, YOLOv8, OpenCV | Cyber Neon Theme 🚀</text>
+</svg>

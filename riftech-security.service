@@ -1,0 +1,24 @@
+[Unit]
+Description=Riftech Security System - AI-Powered Security Camera
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/riftech/project/riftech-cam-security-pro
+Environment="PATH=/home/riftech/project/riftech-cam-security-pro/venv/bin"
+ExecStart=/home/riftech/project/riftech-cam-security-pro/venv/bin/python /home/riftech/project/riftech-cam-security-pro/src/security_system.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=riftech-security
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
