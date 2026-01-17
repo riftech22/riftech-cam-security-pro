@@ -158,7 +158,6 @@ class SecuritySystem:
         # Start Telegram command handler (if enabled)
         if self.telegram_notifier.enabled and TELEGRAM_AVAILABLE:
             # Run in separate thread to avoid event loop conflict
-            import threading
             def run_telegram_handler():
                 try:
                     loop = asyncio.new_event_loop()
