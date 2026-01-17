@@ -157,11 +157,19 @@ class SecuritySystem:
         
         # Start Telegram command handler (if enabled)
         if self.telegram_notifier.enabled and TELEGRAM_AVAILABLE:
-            try:
-                loop = asyncio.new_event_loop()
-                loop.run_until_complete(self.telegram_notifier.start_command_handler())
-            except Exception as e:
-                logger.error(f"Failed to start Telegram command handler: {e}")
+            # Run in separate thread to avoid event loop conflict
+            import threading
+            def run_telegram_handler():
+                try:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    loop.run_until_complete(self.telegram_notifier.start_command_handler())
+                except Exception as e:
+                    logger.error(f"Failed to start Telegram command handler: {e}")
+            
+            telegram_thread = threading.Thread(target=run_telegram_handler, daemon=True)
+            telegram_thread.start()
+            logger.info("Telegram command handler thread started")
         
         logger.info("Security System started")
     
