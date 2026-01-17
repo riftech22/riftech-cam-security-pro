@@ -17,7 +17,7 @@ from contextlib import asynccontextmanager
 import cv2
 import numpy as np
 import bcrypt
-import jwt
+from jose import jwt
 from fastapi import (
     FastAPI,
     WebSocket,
