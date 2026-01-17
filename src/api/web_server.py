@@ -26,7 +26,8 @@ from fastapi import (
     HTTPException,
     status,
     Request,
-    Response
+    Response,
+    Header
 )
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -178,13 +179,20 @@ def verify_token(token: str) -> dict:
         )
 
 
-async def get_current_user(token: str = Depends(lambda: None)) -> str:
+async def get_current_user(authorization: str = Header(None)) -> str:
     """Get current user from token"""
-    if not token:
+    if not authorization:
         raise HTTPException(
             status_code=401,
             detail="Not authenticated"
         )
+    
+    # Extract token from "Bearer <token>" format
+    if authorization.startswith("Bearer "):
+        token = authorization[7:]  # Remove "Bearer " prefix
+    else:
+        token = authorization
+    
     payload = verify_token(token)
     return payload.get("sub")
 
