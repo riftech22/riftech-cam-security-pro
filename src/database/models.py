@@ -18,7 +18,8 @@ class DatabaseManager:
     """Database manager with async operations"""
     
     def __init__(self):
-        self.db_path = Path(config.paths.base_dir) / config.database.path
+        # Database path already includes full path from config
+        self.db_path = Path(config.database.path)
         self._lock = asyncio.Lock()
         self._initialized = False
     
@@ -26,6 +27,9 @@ class DatabaseManager:
         """Initialize database tables"""
         if self._initialized:
             return
+        
+        # Ensure parent directory exists
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         
         async with aiosqlite.connect(self.db_path) as db:
             await self._create_tables(db)
