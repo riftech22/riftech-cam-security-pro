@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 import time
 import threading
+import asyncio
 from typing import Optional, List, Dict, Callable
 from datetime import datetime
 from pathlib import Path
