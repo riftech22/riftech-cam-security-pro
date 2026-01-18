@@ -303,12 +303,15 @@ async function updateStats() {
 }
 
 function updateStatsUI(stats) {
-    document.getElementById('fps').textContent = stats.fps || 0;
+    // Format FPS to 2 decimal places if it's a number, otherwise 0
+    const fps = typeof stats.fps === 'number' ? stats.fps.toFixed(2) : '0';
+    
+    document.getElementById('fps').textContent = fps;
     document.getElementById('persons').textContent = stats.persons || 0;
     document.getElementById('trusted').textContent = stats.trusted || 0;
     document.getElementById('unknown').textContent = stats.unknown || 0;
     document.getElementById('breaches').textContent = stats.breaches || 0;
-    document.getElementById('videoFps').textContent = stats.fps || 0;
+    document.getElementById('videoFps').textContent = fps;
 }
 
 // ========== CONFIGURATION ==========
