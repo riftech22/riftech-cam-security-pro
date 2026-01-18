@@ -229,7 +229,7 @@ class FrameManagerV2:
         
         Args:
             name: Buffer name
-            shape: Frame shape
+            shape: Frame shape (height, width, channels)
             dtype: Data type
             
         Returns:
@@ -240,6 +240,29 @@ class FrameManagerV2:
                 logger.warning(f"Ring buffer {name} already exists")
                 return self.ring_buffers[name].attach()
             
+            # Limit frame size for shared memory (max 1280x720)
+            # Larger frames will cause SharedMemory creation to fail
+            height, width, channels = shape
+            max_width = 1280
+            max_height = 720
+            
+            if width > max_width or height > max_height:
+                # Calculate new size maintaining aspect ratio
+                aspect_ratio = width / height
+                if width > max_width:
+                    width = max_width
+                    height = int(width / aspect_ratio)
+                if height > max_height:
+                    height = max_height
+                    width = int(height * aspect_ratio)
+                
+                # Ensure minimum size
+                width = max(width, 640)
+                height = max(height, 480)
+                
+                logger.warning(f"Resizing frame for {name}: {shape[0]}x{shape[1]} -> {height}x{width}")
+                shape = (height, width, channels)
+            
             buffer = RingBuffer(name, shape, dtype)
             if buffer._create_slots():
                 self.ring_buffers[name] = buffer
@@ -248,7 +271,7 @@ class FrameManagerV2:
     
     def write_frame(self, name: str, frame: np.ndarray) -> bool:
         """
-        Write frame to ring buffer
+        Write frame to ring buffer (auto-resize if needed)
         
         Args:
             name: Buffer name
@@ -262,7 +285,14 @@ class FrameManagerV2:
                 logger.warning(f"Ring buffer {name} not found")
                 return False
             
-            return self.ring_buffers[name].write(frame)
+            buffer = self.ring_buffers[name]
+            
+            # Resize frame if size doesn't match buffer
+            if frame.shape != buffer.shape:
+                import cv2
+                frame = cv2.resize(frame, (buffer.shape[1], buffer.shape[0]), interpolation=cv2.INTER_LINEAR)
+            
+            return buffer.write(frame)
     
     def read_frame(self, name: str) -> Optional[np.ndarray]:
         """
