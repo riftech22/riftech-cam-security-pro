@@ -102,6 +102,7 @@ class CaptureWorker:
         self.thread = None
         self.motion_interval = 3  # Detect every N frames (lower = more frequent detection)
         self.shared_frame_writer = None
+        self.last_motion_time = 0.0
     
     def start(self):
         """Start capture worker"""

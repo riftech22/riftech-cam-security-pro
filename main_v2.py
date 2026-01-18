@@ -49,7 +49,7 @@ class SecurityAppV2:
             logger.info("Riftech Security System V2 Running!")
             logger.info(f"Mode: {self.security_system.system_mode}")
             logger.info(f"Capture FPS: {config.camera.fps}")
-            logger.info(f"Detection: Motion-First Enabled")
+            logger.info(f"Detection: YOLO Always Running (No Motion-First)")
             logger.info(f"Streaming: MJPEG Enabled")
             logger.info("Press Ctrl+C to stop")
             logger.info("=" * 60)
