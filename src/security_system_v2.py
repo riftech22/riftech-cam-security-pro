@@ -100,8 +100,7 @@ class CaptureWorker:
         self.frame_count = 0
         self.detection_queue = None  # Set externally
         self.thread = None
-        self.last_motion_time = 0.0
-        self.motion_interval = 5  # Only detect every N frames
+        self.motion_interval = 3  # Detect every N frames (lower = more frequent detection)
         self.shared_frame_writer = None
     
     def start(self):
@@ -250,9 +249,8 @@ class DetectionWorker:
                 motion_boxes = item.get('motion_boxes', [])
                 has_motion = item.get('has_motion', False)
                 
-                # Skip YOLO if no motion (optimization)
-                if not has_motion and len(motion_boxes) == 0:
-                    continue
+                # YOLO always runs - no motion-first mode for continuous detection
+                # This ensures detection of people even when stationary
                 
                 # Process frames
                 result = DetectionResult(
@@ -717,11 +715,9 @@ class EnhancedSecuritySystem:
         # Create separate writer for overlays
         overlay_writer = SharedFrameWriter("camera_overlay", (config.camera.height, config.camera.width, 3))
         
-        # Write overlays every frame if there are tracked objects, otherwise every 5 frames
-        write_interval_without_objects = 5
-        frame_counter = 0
+        # Write overlays every frame (no conditions) to prevent flickering
+        min_write_interval = 0.1  # Maximum 10 FPS for overlays
         last_write_time = 0.0
-        min_write_interval = 0.1  # Minimum 100ms between writes (10 FPS)
         
         while self.running:
             try:
@@ -729,27 +725,17 @@ class EnhancedSecuritySystem:
                 
                 # Check if enough time passed since last write
                 if current_time - last_write_time >= min_write_interval:
-                    frame_counter += 1
+                    # Get frame with overlays - ALWAYS write, no conditions
+                    frame_with_overlays = self.get_frame_with_overlays("camera", {
+                        "bounding_boxes": True,
+                        "timestamp": True,
+                        "zones": True,
+                        "skeletons": True
+                    })
                     
-                    # Get tracked objects count
-                    tracked_objects = self.tracking_worker.get_tracked_objects() if self.tracking_worker else []
-                    has_objects = len(tracked_objects) > 0
-                    
-                    # Write more frequently if there are objects detected
-                    should_write = has_objects or (frame_counter % write_interval_without_objects == 0)
-                    
-                    if should_write:
-                        # Get frame with overlays
-                        frame_with_overlays = self.get_frame_with_overlays("camera", {
-                            "bounding_boxes": True,
-                            "timestamp": True,
-                            "zones": True,
-                            "skeletons": True
-                        })
-                        
-                        if frame_with_overlays is not None:
-                            overlay_writer.write(frame_with_overlays)
-                            last_write_time = current_time
+                    if frame_with_overlays is not None:
+                        overlay_writer.write(frame_with_overlays)
+                        last_write_time = current_time
                 
                 time.sleep(0.05)  # Check every 50ms (20 Hz)
                 
