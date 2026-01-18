@@ -38,7 +38,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from ..core.config import config
 from ..core.logger import logger
-from ..core.shared_frame import SharedFrameReader
+from ..core.frame_manager_v2 import frame_manager_v2
 
 # Ensure data directory exists
 Path("data").mkdir(parents=True, exist_ok=True)
@@ -290,19 +290,9 @@ async def stream_video(
     fps: int = 15,
     height: int = 720
 ):
-    """Stream live video with AI detection overlay (MJPEG)"""
+    """Stream live video with AI detection overlay (MJPEG) - IN-MEMORY STREAMING"""
     
-    logger.info("Streaming endpoint called")
-    
-    # Read from overlay file (with AI bounding boxes, skeletons, timestamp)
-    overlay_file = Path("data/shared_frames/camera_overlay.jpg")
-    
-    if overlay_file.exists():
-        frame_file = overlay_file
-        logger.info(f"Using overlay file with AI detection: {frame_file}")
-    else:
-        logger.error("Overlay frame file not found")
-        return JSONResponse(content={"error": "Overlay frame file not found"}, status_code=404)
+    logger.info("Streaming endpoint called - IN-MEMORY MODE")
     
     async def generate():
         frame_count = 0
@@ -312,20 +302,8 @@ async def stream_video(
         
         while True:
             try:
-                # Read directly from file (no SharedFrameReader wrapper)
-                frame = None
-                try:
-                    with open(frame_file, 'rb') as f:
-                        jpeg_data = f.read()
-                    
-                    # Decode JPEG
-                    frame = cv2.imdecode(np.frombuffer(jpeg_data, np.uint8), cv2.IMREAD_COLOR)
-                    
-                    if frame is not None:
-                        last_valid_frame = frame
-                except Exception as e:
-                    logger.debug(f"Direct file read error: {e}")
-                    frame = None
+                # Read directly from shared memory (IN-MEMORY - no disk I/O!)
+                frame = frame_manager_v2.force_read_frame("camera_full_overlay")
                 
                 # Use last valid frame if current read failed
                 if frame is None and last_valid_frame is not None:
@@ -335,6 +313,9 @@ async def stream_video(
                     frame = np.zeros((height, int(height * 16 / 9), 3), np.uint8)
                     cv2.putText(frame, "Connecting...", (10, height // 2),
                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+                else:
+                    # Update last valid frame
+                    last_valid_frame = frame
                 
                 # Resize and encode
                 width = int(height * frame.shape[1] / frame.shape[0])
