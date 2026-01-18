@@ -312,13 +312,12 @@ async def stream_video(
         height: Frame height (default: 720)
     """
     
-    # Try enhanced security system first
+    # Try enhanced security system
     try:
         from ..security_system_v2 import enhanced_security_system
-        from ..core.frame_manager import frame_manager
         
         if enhanced_security_system.running:
-            logger.info("Using enhanced security system for streaming (optimized")
+            logger.info("Using enhanced security system for streaming")
             
             shared_frame_reader = SharedFrameReader("camera")
             
@@ -329,8 +328,7 @@ async def stream_video(
                 
                 while True:
                     try:
-                        # OPTIMIZATION: Read frame directly from shared memory
-                        # Skip get_frame_with_overlays for performance
+                        # Read frame directly from file
                         frame = shared_frame_reader.read()
                         
                         if frame is None:
@@ -339,38 +337,28 @@ async def stream_video(
                             cv2.putText(frame, "Connecting...", (10, height // 2),
                                        cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
                         else:
-                            # OPTIMIZATION: Only draw overlays if bbox=True
-                            # For smooth streaming, minimal overhead
-                            if bbox and frame_count % 3 == 0:  # Every 3rd frame
-                                # Get tracked objects
+                            # Draw overlays
+                            if bbox and frame_count % 3 == 0:
                                 tracked_objects = enhanced_security_system.tracking_worker.get_tracked_objects()
-                                
-                                # Draw minimal bounding boxes (no skeletons, no labels)
                                 for obj in tracked_objects:
                                     if time.time() - obj.last_seen < 2.0:
                                         x1, y1, x2, y2 = obj.bbox
                                         color = (0, 255, 0) if obj.is_trusted else (0, 255, 255)
                                         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                             
-                            # Draw timestamp if enabled (every frame)
                             if timestamp:
                                 timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                 cv2.putText(frame, timestamp_str, (10, 30),
                                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
                         
-                        # OPTIMIZATION: Use faster resize and encode
+                        # Resize and encode
                         width = int(height * frame.shape[1] / frame.shape[0])
-                        frame = cv2.resize(frame, dsize=(width, height), 
-                                         interpolation=cv2.INTER_LINEAR)
-                        
-                        # OPTIMIZATION: Lower quality for faster encoding
+                        frame = cv2.resize(frame, dsize=(width, height), interpolation=cv2.INTER_LINEAR)
                         jpeg_bytes = encode_frame_to_jpeg(frame, quality=65)
                         
-                        # Yield MJPEG frame
                         yield (b'--frame\r\n'
                                b'Content-Type: image/jpeg\r\n\r\n' + jpeg_bytes + b'\r\n\r\n')
                         
-                        # OPTIMIZATION: Calculate actual FPS
                         frame_count += 1
                         fps_counter += 1
                         current_time = time.time()
@@ -380,7 +368,6 @@ async def stream_video(
                             fps_counter = 0
                             last_fps_check = current_time
                         
-                        # FPS control
                         await asyncio.sleep(1.0 / fps)
                         
                     except Exception as e:
@@ -392,47 +379,8 @@ async def stream_video(
                 media_type="multipart/x-mixed-replace; boundary=frame"
             )
     except ImportError:
-        logger.info("Enhanced security system not available, using old system")
-    
-    # Fallback to old system
-    async def generate():
-        frame_count = 0
-        while True:
-            try:
-                # Try to read shared frame from file
-                if SHARED_FRAME_PATH.exists():
-                    # Read frame stats to check if updated
-                    if SHARED_STATS_PATH.exists():
-                        stats_data = SHARED_STATS_PATH.read_text()
-                        current_count = int(json.loads(stats_data).get("frame_count", 0))
-                        
-                        # Only read if frame is updated
-                        if current_count > frame_count:
-                            frame_count = current_count
-                            
-                            # Read and send frame
-                            jpeg_bytes = SHARED_FRAME_PATH.read_bytes()
-                            
-                            yield (b'--frame\r\n'
-                                   b'Content-Type: image/jpeg\r\n\r\n' + jpeg_bytes + b'\r\n')
-                
-                # Fallback: try security_system if available
-                elif security_system and security_system.current_frame is not None:
-                    frame = security_system.current_frame.copy()
-                    jpeg_bytes = encode_frame_to_jpeg(frame)
-                    yield (b'--frame\r\n'
-                           b'Content-Type: image/jpeg\r\n\r\n' + jpeg_bytes + b'\r\n')
-                
-                await asyncio.sleep(0.033)  # ~30 FPS
-                
-            except Exception as e:
-                logger.error(f"Error streaming video: {e}")
-                await asyncio.sleep(0.1)
-    
-    return StreamingResponse(
-        generate(),
-        media_type="multipart/x-mixed-replace; boundary=frame"
-    )
+        logger.info("Enhanced security system not available")
+        return JSONResponse(content={"error": "Security system not available"}, status_code=503)
 
 
 @app.get("/api/frame.jpg")
@@ -453,7 +401,6 @@ async def get_latest_frame(
         skeletons: Show skeletons (default: True)
         height: Frame height (default: 720)
     """
-    # Try enhanced security system first
     try:
         from ..security_system_v2 import enhanced_security_system
         
@@ -469,16 +416,10 @@ async def get_latest_frame(
             frame = enhanced_security_system.get_frame_with_overlays("camera", draw_options)
             
             if frame is None:
-                raise HTTPException(
-                    status_code=503,
-                    detail="Frame not available"
-                )
+                raise HTTPException(status_code=503, detail="Frame not available")
             
-            # Resize to requested height
             width = int(height * frame.shape[1] / frame.shape[0])
             frame = cv2.resize(frame, dsize=(width, height), interpolation=cv2.INTER_AREA)
-            
-            # Encode to JPEG
             jpeg_bytes = encode_frame_to_jpeg(frame, quality=85)
             
             return Response(
@@ -489,46 +430,13 @@ async def get_latest_frame(
     except ImportError:
         pass
     
-    # Fallback to old system
-    if security_system and security_system.current_frame is not None:
-        frame = security_system.current_frame.copy()
-        
-        # Resize to requested height
-        width = int(height * frame.shape[1] / frame.shape[0])
-        frame = cv2.resize(frame, dsize=(width, height), interpolation=cv2.INTER_AREA)
-        
-        # Encode to JPEG
-        jpeg_bytes = encode_frame_to_jpeg(frame, quality=85)
-        
-        return Response(
-            content=jpeg_bytes,
-            media_type="image/jpeg",
-            headers={"Cache-Control": "no-store"}
-        )
-    
-    raise HTTPException(
-        status_code=503,
-        detail="Frame not available"
-    )
+    raise HTTPException(status_code=503, detail="Frame not available")
 
 
 # ========== SYSTEM STATUS ENDPOINTS ==========
 
-@app.get("/api/status")
-async def get_status(current_user: str = Depends(get_current_user)):
-    """Get system status"""
-    if not security_system:
-        raise HTTPException(
-            status_code=503,
-            detail="Security system not initialized"
-        )
-    
-    status = security_system.get_system_status()
-    return JSONResponse(content=status)
-
-
 @app.get("/api/stats")
-async def get_stats(current_user: str = Depends(get_current_user)):
+async def get_stats():
     """Get system statistics"""
     
     # Try to read from shared file first
@@ -539,12 +447,15 @@ async def get_stats(current_user: str = Depends(get_current_user)):
         except Exception as e:
             logger.error(f"Error reading shared stats: {e}")
     
-    # Fallback to security_system
-    if security_system:
-        stats = security_system.get_stats()
-        return JSONResponse(content=stats)
+    # Fallback to enhanced_security_system
+    try:
+        from ..security_system_v2 import enhanced_security_system
+        if enhanced_security_system.running:
+            stats = enhanced_security_system.get_stats()
+            return JSONResponse(content=stats)
+    except:
+        pass
     
-    # Return default stats
     return JSONResponse(content={
         "fps": 0,
         "persons": 0,
@@ -552,35 +463,6 @@ async def get_stats(current_user: str = Depends(get_current_user)):
         "unknown": 0,
         "breaches": 0
     })
-
-
-@app.post("/api/mode", response_model=dict)
-async def set_mode(
-    mode_request: ModeChange,
-    current_user: str = Depends(get_current_user)
-):
-    """Change system mode"""
-    if not security_system:
-        raise HTTPException(
-            status_code=503,
-            detail="Security system not initialized"
-        )
-    
-    security_system.set_mode(mode_request.mode)
-    
-    logger.info(f"User {current_user} changed mode to {mode_request.mode}")
-    
-    # Broadcast to WebSocket clients
-    await manager.broadcast({
-        "type": "mode_change",
-        "mode": mode_request.mode,
-        "timestamp": datetime.now().isoformat()
-    })
-    
-    return {
-        "message": f"Mode changed to {mode_request.mode}",
-        "mode": mode_request.mode
-    }
 
 
 # ========== CONFIGURATION ENDPOINTS ==========
@@ -687,16 +569,16 @@ async def update_config(
 # ========== ZONE ENDPOINTS ==========
 
 @app.get("/api/zones")
-async def get_zones(current_user: str = Depends(get_current_user)):
+async def get_zones():
     """Get all security zones"""
-    if not security_system:
-        raise HTTPException(
-            status_code=503,
-            detail="Security system not initialized"
-        )
-    
-    zones = security_system.zone_manager.get_all_zones()
-    return JSONResponse(content={"zones": zones})
+    try:
+        from ..security_system_v2 import enhanced_security_system
+        if enhanced_security_system.running:
+            zones = enhanced_security_system.zone_manager.get_all_zones()
+            return JSONResponse(content={"zones": zones})
+    except ImportError:
+        pass
+    return JSONResponse(content={"zones": []})
 
 
 @app.post("/api/zones")
@@ -705,24 +587,19 @@ async def create_zone(
     current_user: str = Depends(get_current_user)
 ):
     """Create new security zone"""
-    if not security_system:
-        raise HTTPException(
-            status_code=503,
-            detail="Security system not initialized"
-        )
-    
-    zone_id = security_system.zone_manager.add_zone(
-        zone.points,
-        zone.armed,
-        zone.name
-    )
-    
-    logger.info(f"Zone {zone_id} created by {current_user}")
-    
-    return {
-        "message": "Zone created successfully",
-        "zone_id": zone_id
-    }
+    try:
+        from ..security_system_v2 import enhanced_security_system
+        if enhanced_security_system.running:
+            zone_id = enhanced_security_system.zone_manager.add_zone(
+                zone.points,
+                zone.armed,
+                zone.name
+            )
+            logger.info(f"Zone {zone_id} created by {current_user}")
+            return {"message": "Zone created successfully", "zone_id": zone_id}
+    except ImportError:
+        pass
+    raise HTTPException(status_code=503, detail="Security system not available")
 
 
 @app.put("/api/zones/{zone_id}")
@@ -732,21 +609,19 @@ async def update_zone(
     current_user: str = Depends(get_current_user)
 ):
     """Update security zone"""
-    if not security_system:
-        raise HTTPException(
-            status_code=503,
-            detail="Security system not initialized"
-        )
-    
-    security_system.zone_manager.update_zone(
-        zone_id,
-        armed=zone_update.armed,
-        name=zone_update.name
-    )
-    
-    logger.info(f"Zone {zone_id} updated by {current_user}")
-    
-    return {"message": "Zone updated successfully"}
+    try:
+        from ..security_system_v2 import enhanced_security_system
+        if enhanced_security_system.running:
+            enhanced_security_system.zone_manager.update_zone(
+                zone_id,
+                armed=zone_update.armed,
+                name=zone_update.name
+            )
+            logger.info(f"Zone {zone_id} updated by {current_user}")
+            return {"message": "Zone updated successfully"}
+    except ImportError:
+        pass
+    raise HTTPException(status_code=503, detail="Security system not available")
 
 
 @app.delete("/api/zones/{zone_id}")
@@ -755,39 +630,35 @@ async def delete_zone(
     current_user: str = Depends(get_current_user)
 ):
     """Delete security zone"""
-    if not security_system:
-        raise HTTPException(
-            status_code=503,
-            detail="Security system not initialized"
-        )
-    
-    security_system.zone_manager.delete_zone(zone_id)
-    
-    logger.info(f"Zone {zone_id} deleted by {current_user}")
-    
-    return {"message": "Zone deleted successfully"}
+    try:
+        from ..security_system_v2 import enhanced_security_system
+        if enhanced_security_system.running:
+            enhanced_security_system.zone_manager.delete_zone(zone_id)
+            logger.info(f"Zone {zone_id} deleted by {current_user}")
+            return {"message": "Zone deleted successfully"}
+    except ImportError:
+        pass
+    raise HTTPException(status_code=503, detail="Security system not available")
 
 
 @app.delete("/api/zones")
 async def clear_all_zones(current_user: str = Depends(get_current_user)):
     """Clear all zones"""
-    if not security_system:
-        raise HTTPException(
-            status_code=503,
-            detail="Security system not initialized"
-        )
-    
-    security_system.zone_manager.clear_all_zones()
-    
-    logger.info(f"All zones cleared by {current_user}")
-    
-    return {"message": "All zones cleared"}
+    try:
+        from ..security_system_v2 import enhanced_security_system
+        if enhanced_security_system.running:
+            enhanced_security_system.zone_manager.clear_all_zones()
+            logger.info(f"All zones cleared by {current_user}")
+            return {"message": "All zones cleared"}
+    except ImportError:
+        pass
+    raise HTTPException(status_code=503, detail="Security system not available")
 
 
 # ========== FACE ENDPOINTS ==========
 
 @app.get("/api/faces")
-async def get_faces(current_user: str = Depends(get_current_user)):
+async def get_faces():
     """Get all trusted faces"""
     faces_dir = Path(config.paths.trusted_faces_dir)
     
@@ -814,30 +685,18 @@ async def upload_face(
 ):
     """Upload trusted face"""
     if not file:
-        raise HTTPException(
-            status_code=400,
-            detail="No file uploaded"
-        )
+        raise HTTPException(status_code=400, detail="No file uploaded")
     
-    # Validate file is image
     try:
         image = cv2.imdecode(np.frombuffer(file, np.uint8), cv2.IMREAD_COLOR)
         if image is None:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid image file"
-            )
+            raise HTTPException(status_code=400, detail="Invalid image file")
     except:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid image file"
-        )
+        raise HTTPException(status_code=400, detail="Invalid image file")
     
-    # Save face
     faces_dir = Path(config.paths.trusted_faces_dir)
     faces_dir.mkdir(parents=True, exist_ok=True)
     
-    # Sanitize filename
     safe_name = "".join(c for c in name if c.isalnum() or c in (' ', '-', '_'))
     face_path = faces_dir / f"{safe_name}.jpg"
     
@@ -845,10 +704,7 @@ async def upload_face(
     
     logger.info(f"Face {safe_name} uploaded by {current_user}")
     
-    return {
-        "message": "Face uploaded successfully",
-        "name": safe_name
-    }
+    return {"message": "Face uploaded successfully", "name": safe_name}
 
 
 @app.delete("/api/faces/{face_name}")
@@ -861,10 +717,7 @@ async def delete_face(
     face_path = faces_dir / f"{face_name}.jpg"
     
     if not face_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail="Face not found"
-        )
+        raise HTTPException(status_code=404, detail="Face not found")
     
     face_path.unlink()
     
@@ -876,10 +729,7 @@ async def delete_face(
 # ========== ALERT ENDPOINTS ==========
 
 @app.get("/api/alerts")
-async def get_alerts(
-    limit: int = 50,
-    current_user: str = Depends(get_current_user)
-):
+async def get_alerts(limit: int = 50):
     """Get alert history"""
     alerts_dir = Path(config.paths.alerts_dir)
     
@@ -904,24 +754,15 @@ async def get_alert_image(alert_name: str):
     alert_path = Path(config.paths.alerts_dir) / alert_name
     
     if not alert_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail="Alert not found"
-        )
+        raise HTTPException(status_code=404, detail="Alert not found")
     
-    return FileResponse(
-        path=str(alert_path),
-        media_type="image/jpeg"
-    )
+    return FileResponse(path=str(alert_path), media_type="image/jpeg")
 
 
 # ========== RECORDINGS ENDPOINTS ==========
 
 @app.get("/api/recordings")
-async def get_recordings(
-    limit: int = 20,
-    current_user: str = Depends(get_current_user)
-):
+async def get_recordings(limit: int = 20):
     """Get video recordings"""
     recordings_dir = Path(config.paths.recordings_dir)
     
@@ -942,10 +783,7 @@ async def get_recordings(
 
 
 @app.get("/api/snapshots")
-async def get_snapshots(
-    limit: int = 20,
-    current_user: str = Depends(get_current_user)
-):
+async def get_snapshots(limit: int = 20):
     """Get snapshots"""
     snapshots_dir = Path(config.paths.snapshots_dir)
     
@@ -974,20 +812,14 @@ async def websocket_endpoint(websocket: WebSocket):
     
     try:
         while True:
-            # Keep connection alive
             data = await websocket.receive_text()
-            
-            # Handle client messages if needed
             if data:
                 message = json.loads(data)
                 logger.info(f"Received WebSocket message: {message}")
-                
-                # Echo back or handle specific commands
                 await websocket.send_text(json.dumps({
                     "type": "echo",
                     "message": "Message received"
                 }))
-    
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception as e:
@@ -1013,32 +845,6 @@ async def read_dashboard():
     if dashboard_path.exists():
         return HTMLResponse(content=dashboard_path.read_text())
     return HTMLResponse(content="<h1>Dashboard not found</h1>")
-
-
-# ========== HELPER FUNCTIONS ==========
-
-async def broadcast_detection_update():
-    """Broadcast detection updates to all WebSocket clients"""
-    if not security_system:
-        return
-    
-    stats = security_system.get_stats()
-    await manager.broadcast({
-        "type": "detection_update",
-        "stats": stats,
-        "timestamp": datetime.now().isoformat()
-    })
-
-
-async def broadcast_alert(alert_type: str, message: str, photo_path: str = None):
-    """Broadcast alert to all WebSocket clients"""
-    await manager.broadcast({
-        "type": "alert",
-        "alert_type": alert_type,
-        "message": message,
-        "photo": photo_path,
-        "timestamp": datetime.now().isoformat()
-    })
 
 
 # ========== START SERVER ==========
