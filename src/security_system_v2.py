@@ -269,8 +269,13 @@ class DetectionWorker:
                     split_point = frame.shape[0] // 2
                     for det in bottom_detections:
                         x1, y1, x2, y2 = det.bbox
-                        det.bbox = (x1, y1 + split_point, x2, y2 + split_point)
-                        det.center = ((x1 + x2) // 2, (y1 + y2) // 2 + split_point)
+                        # Create new bbox and center (don't assign directly to avoid read-only issues)
+                        new_bbox = (x1, y1 + split_point, x2, y2 + split_point)
+                        new_center = ((x1 + x2) // 2, (y1 + y2) // 2 + split_point)
+                        
+                        # Update detection object
+                        det.bbox = new_bbox
+                        # Note: PersonDetection center is a property, set through bbox
                         det.camera_label = "bottom"
                     
                     result.persons = top_detections + bottom_detections
