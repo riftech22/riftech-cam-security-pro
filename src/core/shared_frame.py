@@ -50,9 +50,21 @@ class SharedFrameWriter:
             True if successful
         """
         try:
+            if frame is None:
+                logger.warning(f"Cannot write None frame for {self.name}")
+                return False
+            
+            if not isinstance(frame, np.ndarray):
+                logger.warning(f"Frame is not numpy array for {self.name}: {type(frame)}")
+                return False
+            
             with self.lock:
                 # Write frame as JPEG
-                cv2.imwrite(str(self.frame_path), frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+                success = cv2.imwrite(str(self.frame_path), frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+                
+                if not success:
+                    logger.error(f"cv2.imwrite failed for {self.name} - {self.frame_path}")
+                    return False
                 
                 # Write metadata
                 meta = {
@@ -65,6 +77,7 @@ class SharedFrameWriter:
                     pickle.dump(meta, f)
                 
                 self.last_write_time = time.time()
+                logger.debug(f"Successfully wrote frame for {self.name} at {time.time()}")
                 return True
                 
         except Exception as e:
