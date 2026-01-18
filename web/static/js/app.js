@@ -11,6 +11,14 @@ let wsReconnectDelay = 5000;
 let token = localStorage.getItem('token');
 let currentZonePoints = [];
 
+// Streaming variables
+let streamRetryCount = 0;
+let maxStreamRetries = 3;
+let streamRetryDelay = 2000;
+let streamLatencyStart = 0;
+let streamLatency = 0;
+let streamLastUpdate = Date.now();
+
 // ========== INITIALIZATION ==========
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -55,6 +63,9 @@ async function initApp() {
     
     // Start periodic updates
     setInterval(updateStats, 1000);
+    
+    // Initialize streaming
+    initStream();
 }
 
 // ========== TABS ==========
@@ -708,6 +719,143 @@ async function logout() {
     localStorage.removeItem('token');
     localStorage.removeItem('username');
     window.location.href = '/';
+}
+
+// ========== STREAMING FUNCTIONS ==========
+
+function initStream() {
+    updateStreamSettings();
+}
+
+function updateStreamSettings() {
+    // Get current settings
+    const fps = document.getElementById('streamFps').value;
+    const quality = document.getElementById('streamQuality').value;
+    const height = document.getElementById('streamHeight').value;
+    const showBbox = document.getElementById('showBbox').checked;
+    const showTimestamp = document.getElementById('showTimestamp').checked;
+    const showZones = document.getElementById('showZones').checked;
+    
+    // Build stream URL with parameters
+    const videoStream = document.getElementById('videoStream');
+    const params = new URLSearchParams({
+        fps: fps,
+        quality: quality,
+        height: height,
+        bbox: showBbox ? '1' : '0',
+        timestamp: showTimestamp ? '1' : '0',
+        zones: showZones ? '1' : '0'
+    });
+    
+    // Update stream URL
+    const newSrc = `/api/stream?${params.toString()}`;
+    
+    // Only update if URL changed
+    if (videoStream.src !== newSrc) {
+        videoStream.src = newSrc;
+        updateStreamStatus('Connecting...', 'text-yellow');
+    }
+}
+
+function refreshStream() {
+    const videoStream = document.getElementById('videoStream');
+    
+    // Show loading
+    showStreamLoading(true);
+    hideStreamError();
+    
+    // Force reload by adding timestamp
+    const currentSrc = new URL(videoStream.src, window.location.origin);
+    currentSrc.searchParams.set('t', Date.now());
+    
+    // Reset retry count
+    streamRetryCount = 0;
+    
+    // Update source
+    videoStream.src = currentSrc.toString();
+    
+    // Update status
+    updateStreamStatus('Refreshing...', 'text-yellow');
+}
+
+function onStreamLoaded() {
+    // Hide loading
+    showStreamLoading(false);
+    hideStreamError();
+    
+    // Update status
+    updateStreamStatus('Connected', 'text-green');
+    
+    // Reset retry count
+    streamRetryCount = 0;
+    
+    // Update latency
+    if (streamLatencyStart > 0) {
+        streamLatency = Date.now() - streamLatencyStart;
+        document.getElementById('streamLatency').textContent = `${streamLatency}ms`;
+        streamLatencyStart = 0;
+    }
+    
+    // Update last update time
+    streamLastUpdate = Date.now();
+    
+    console.log('Stream loaded successfully');
+}
+
+function onStreamError() {
+    console.error('Stream error occurred');
+    
+    // Increment retry count
+    streamRetryCount++;
+    
+    if (streamRetryCount <= maxStreamRetries) {
+        // Show loading and retry
+        showStreamLoading(true);
+        updateStreamStatus(`Reconnecting (${streamRetryCount}/${maxStreamRetries})...`, 'text-yellow');
+        
+        // Retry after delay
+        setTimeout(() => {
+            refreshStream();
+        }, streamRetryDelay);
+    } else {
+        // Max retries reached, show error
+        showStreamLoading(false);
+        showStreamError();
+        updateStreamStatus('Offline', 'text-red');
+    }
+}
+
+function showStreamLoading(show) {
+    const loadingElement = document.getElementById('streamLoading');
+    if (loadingElement) {
+        loadingElement.style.display = show ? 'block' : 'none';
+    }
+}
+
+function hideStreamLoading() {
+    showStreamLoading(false);
+}
+
+function showStreamError() {
+    const errorElement = document.getElementById('streamError');
+    if (errorElement) {
+        errorElement.style.display = 'block';
+    }
+}
+
+function hideStreamError() {
+    const errorElement = document.getElementById('streamError');
+    if (errorElement) {
+        errorElement.style.display = 'none';
+    }
+}
+
+function updateStreamStatus(status, colorClass) {
+    const statusElement = document.getElementById('streamStatus');
+    if (statusElement) {
+        statusElement.textContent = status;
+        statusElement.className = colorClass;
+    }
 }
 
 // ========== UTILITY FUNCTIONS ==========

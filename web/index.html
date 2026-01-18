@@ -214,18 +214,79 @@
                         <h3 class="card-title">Live Preview</h3>
                         <div class="card-actions">
                             <button class="btn btn-secondary btn-sm" onclick="captureSnapshot()">Snapshot</button>
+                            <button class="btn btn-primary btn-sm" onclick="refreshStream()">Refresh</button>
                         </div>
                     </div>
+                    
+                    <!-- Streaming Controls -->
+                    <div class="streaming-controls">
+                        <div class="control-group">
+                            <label class="control-label">Stream FPS:</label>
+                            <select class="form-select" id="streamFps" onchange="updateStreamSettings()">
+                                <option value="5">5 FPS</option>
+                                <option value="10">10 FPS</option>
+                                <option value="15" selected>15 FPS</option>
+                                <option value="20">20 FPS</option>
+                                <option value="30">30 FPS</option>
+                                <option value="60">60 FPS</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label class="control-label">Quality:</label>
+                            <select class="form-select" id="streamQuality" onchange="updateStreamSettings()">
+                                <option value="50">Low (Fast)</option>
+                                <option value="70" selected>Medium</option>
+                                <option value="85">High</option>
+                                <option value="95">Ultra (Slow)</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label class="control-label">Height:</label>
+                            <select class="form-select" id="streamHeight" onchange="updateStreamSettings()">
+                                <option value="360">360p</option>
+                                <option value="480">480p</option>
+                                <option value="720" selected>720p</option>
+                                <option value="1080">1080p</option>
+                            </select>
+                        </div>
+                        <div class="control-group">
+                            <label class="control-label">Overlays:</label>
+                            <div class="checkbox-group">
+                                <label class="checkbox-inline">
+                                    <input type="checkbox" id="showBbox" checked onchange="updateStreamSettings()"> BBox
+                                </label>
+                                <label class="checkbox-inline">
+                                    <input type="checkbox" id="showTimestamp" checked onchange="updateStreamSettings()"> Time
+                                </label>
+                                <label class="checkbox-inline">
+                                    <input type="checkbox" id="showZones" checked onchange="updateStreamSettings()"> Zones
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Video Container -->
                     <div class="video-container">
-                        <img id="videoStream" class="video-stream" src="/api/stream" alt="Live Stream">
+                        <div id="streamLoading" class="stream-loading">
+                            <div class="loading-spinner"></div>
+                            <p>Loading stream...</p>
+                        </div>
+                        <div id="streamError" class="stream-error" style="display: none;">
+                            <p>⚠️ Stream offline</p>
+                            <button class="btn btn-primary btn-sm" onclick="refreshStream()">Reconnect</button>
+                        </div>
+                        <img id="videoStream" class="video-stream" src="" alt="Live Stream" 
+                             onload="onStreamLoaded()" onerror="onStreamError()">
                         <canvas id="zoneCanvas" class="zone-canvas"></canvas>
                         <div class="detection-info">
                             <div>Mode: <span id="currentMode">Normal</span></div>
                             <div>FPS: <span id="videoFps">0</span></div>
+                            <div>Status: <span id="streamStatus" class="text-yellow">Connecting...</span></div>
                         </div>
                         <div class="video-controls">
                             <div class="video-info">
                                 <span>Resolution: <span id="resolution">1280x720</span></span>
+                                <span>Latency: <span id="streamLatency">--</span></span>
                             </div>
                         </div>
                     </div>

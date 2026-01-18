@@ -888,6 +888,82 @@ body {
     }
 }
 
+/* ========== STREAMING CONTROLS ========== */
+
+.streaming-controls {
+    display: flex;
+    gap: 15px;
+    padding: 15px;
+    background: rgba(17, 17, 25, 0.95);
+    border: 1px solid var(--neon-cyan);
+    border-radius: 5px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 120px;
+}
+
+.control-label {
+    color: var(--neon-cyan);
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.checkbox-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.checkbox-inline {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text-primary);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.checkbox-inline input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.stream-loading,
+.stream-error {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.9);
+    padding: 30px 50px;
+    border-radius: 10px;
+    border: 2px solid var(--neon-cyan);
+}
+
+.stream-loading p,
+.stream-error p {
+    color: var(--neon-cyan);
+    font-size: 14px;
+    margin-top: 15px;
+}
+
+.stream-error {
+    border-color: var(--neon-red);
+}
+
+.stream-error p {
+    color: var(--neon-red);
+}
+
 /* ========== UTILITIES ========== */
 
 .text-green { color: var(--neon-green); }
