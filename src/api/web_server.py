@@ -292,38 +292,73 @@ async def stream_video(
 ):
     """Stream live video with AI detection overlay (MJPEG)"""
     
+    logger.info("Streaming endpoint called")
+    
+    # Check if frame file exists
+    frame_file = Path("data/shared_frames/camera.jpg")
+    if not frame_file.exists():
+        logger.error(f"Frame file not found: {frame_file}")
+        return JSONResponse(content={"error": "Frame file not found"}, status_code=404)
+    
     try:
         from ..security_system_v2 import enhanced_security_system
         
         if enhanced_security_system.running:
             logger.info("Using enhanced security system for streaming")
             
-            shared_frame_reader = SharedFrameReader("camera")
-            
             async def generate():
                 frame_count = 0
                 last_fps_check = time.time()
                 fps_counter = 0
+                consecutive_errors = 0
+                max_consecutive_errors = 10
                 
                 while True:
                     try:
-                        # Read frame directly from file
-                        frame = shared_frame_reader.read()
+                        # Method 1: Try reading with SharedFrameReader
+                        frame = None
+                        try:
+                            shared_frame_reader = SharedFrameReader("camera")
+                            frame = shared_frame_reader.read()
+                        except Exception as e:
+                            logger.debug(f"SharedFrameReader error: {e}")
+                            frame = None
+                        
+                        if frame is None:
+                            # Method 2: Fallback to direct file reading
+                            try:
+                                with open(frame_file, 'rb') as f:
+                                    jpeg_data = f.read()
+                                
+                                # Decode JPEG
+                                frame = cv2.imdecode(np.frombuffer(jpeg_data, np.uint8), cv2.IMREAD_COLOR)
+                                
+                                if frame is None:
+                                    raise ValueError("Failed to decode JPEG")
+                            except Exception as e:
+                                logger.debug(f"Direct file read error: {e}")
+                                frame = None
                         
                         if frame is None:
                             # Create error frame
                             frame = np.zeros((height, int(height * 16 / 9), 3), np.uint8)
                             cv2.putText(frame, "Connecting...", (10, height // 2),
                                        cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+                            consecutive_errors += 1
                         else:
+                            consecutive_errors = 0
+                            
                             # Draw overlays
                             if bbox and frame_count % 3 == 0:
-                                tracked_objects = enhanced_security_system.tracking_worker.get_tracked_objects()
-                                for obj in tracked_objects:
-                                    if time.time() - obj.last_seen < 2.0:
-                                        x1, y1, x2, y2 = obj.bbox
-                                        color = (0, 255, 0) if obj.is_trusted else (0, 255, 255)
-                                        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                                try:
+                                    tracked_objects = enhanced_security_system.tracking_worker.get_tracked_objects()
+                                    for obj in tracked_objects:
+                                        if time.time() - obj.last_seen < 2.0:
+                                            x1, y1, x2, y2 = obj.bbox
+                                            color = (0, 255, 0) if obj.is_trusted else (0, 255, 255)
+                                            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                                except Exception as e:
+                                    logger.debug(f"Error drawing bounding boxes: {e}")
                             
                             if timestamp:
                                 timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -349,6 +384,11 @@ async def stream_video(
                         
                         await asyncio.sleep(1.0 / fps)
                         
+                        # Check if too many consecutive errors
+                        if consecutive_errors >= max_consecutive_errors:
+                            logger.error(f"Too many consecutive errors: {consecutive_errors}")
+                            break
+                        
                     except Exception as e:
                         logger.error(f"Error in streaming: {e}")
                         await asyncio.sleep(0.1)
@@ -357,6 +397,8 @@ async def stream_video(
                 generate(),
                 media_type="multipart/x-mixed-replace; boundary=frame"
             )
+        else:
+            return JSONResponse(content={"error": "Security system not running"}, status_code=503)
     except ImportError:
         logger.info("Enhanced security system not available")
         return JSONResponse(content={"error": "Security system not available"}, status_code=503)
