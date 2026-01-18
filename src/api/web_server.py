@@ -315,9 +315,12 @@ async def stream_video(
     try:
         from ..security_system_v2 import enhanced_security_system
         from ..core.frame_manager import frame_manager
+from ..core.shared_frame import SharedFrameReader
         
         if enhanced_security_system.running:
-            logger.info("Using enhanced security system for streaming (optimized)")
+            logger.info("Using enhanced security system for streaming (optimized")
+            
+            shared_frame_reader = SharedFrameReader("camera")
             
             async def generate():
                 frame_count = 0
@@ -328,7 +331,7 @@ async def stream_video(
                     try:
                         # OPTIMIZATION: Read frame directly from shared memory
                         # Skip get_frame_with_overlays for performance
-                        frame = frame_manager.read_frame("camera")
+                        frame = shared_frame_reader.read()
                         
                         if frame is None:
                             # Create error frame

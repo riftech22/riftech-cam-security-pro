@@ -20,6 +20,7 @@ from queue import Queue, Empty
 from .core.config import config
 from .core.logger import logger
 from .core.frame_manager import frame_manager
+from .core.shared_frame import SharedFrameWriter
 from .database.models import db
 
 from .detection.yolo_detector import YOLODetector
@@ -100,6 +101,7 @@ class CaptureWorker:
         self.thread = None
         self.last_motion_time = 0.0
         self.motion_interval = 5  # Only detect every N frames
+        self.shared_frame_writer = None
     
     def start(self):
         """Start capture worker"""
@@ -156,6 +158,10 @@ class CaptureWorker:
                 # Write to shared memory (zero-copy)
                 if not frame_manager.write_frame(self.camera_name, full_frame):
                     logger.error(f"Failed to write frame to shared memory: {self.camera_name}")
+                
+                # Also write to file-based shared frame (for web server)
+                if self.shared_frame_writer:
+                    self.shared_frame_writer.write(full_frame)
                 
                 # Send to detection queue ONLY if motion
                 if has_motion or self.frame_count % self.motion_interval == 0:
@@ -588,6 +594,10 @@ class EnhancedSecuritySystem:
         frame_shape = (config.camera.height, config.camera.width, 3)
         if not frame_manager.register_frame("camera", frame_shape):
             logger.warning("Frame already registered, attaching...")
+        
+        # Initialize file-based shared frame (for web server)
+        frame_shape = (config.camera.height, config.camera.width, 3)
+        self.shared_frame_writer = SharedFrameWriter("camera", frame_shape)
         
         # Create directories
         Path(config.paths.alerts_dir).mkdir(parents=True, exist_ok=True)
