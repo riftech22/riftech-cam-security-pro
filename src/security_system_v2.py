@@ -623,6 +623,7 @@ class EnhancedSecuritySystem:
             self.motion_detector
         )
         self.capture_worker.detection_queue = self.detection_queue
+        self.capture_worker.shared_frame_writer = self.shared_frame_writer
         
         self.detection_worker = DetectionWorker(
             self.yolo_detector,
