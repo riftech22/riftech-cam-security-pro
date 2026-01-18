@@ -309,39 +309,42 @@ class DetectionWorker:
     
     def _process_frame(self, frame: np.ndarray, camera_label: str) -> List[PersonDetection]:
         """Process single frame through all detectors"""
-        # Enhance frame
-        enhanced_frame = apply_clahe(frame)
+        # YOLO person detection (skip CLAHE for speed)
+        person_detections = self.yolo_detector.detect(frame)
         
-        # YOLO person detection
-        person_detections = self.yolo_detector.detect(enhanced_frame)
+        # DISABLED: Skeleton and face detection for ultra-low latency
+        # Re-enable after latency is fixed
+        # for det in person_detections:
+        #     x1, y1, x2, y2 = det.bbox
+        #     
+        #     # Extract person region
+        #     person_region = frame[y1:y2, x1:x2]
+        #     if person_region.size > 0:
+        #         # Get skeleton
+        #         skeleton = self.skeleton_detector.detect(person_region)
+        #         if skeleton:
+        #             det.skeleton = skeleton
+        #             # Adjust skeleton coordinates to full frame
+        #             det.skeleton = [(x + x1, y + y1) for x, y in skeleton]
+        #         
+        #         # Face detection and recognition
+        #         face_bboxes = self.face_detector.detect_faces(person_region)
+        #         if face_bboxes:
+        #             face_recognition = self.face_detector.recognize_face(
+        #                 person_region, face_bboxes[0]
+        #             )
+        #             if face_recognition:
+        #                 det.face_confidence = face_recognition['confidence']
+        #                 det.is_trusted = face_recognition['is_trusted']
+        #                 det.face_name = face_recognition['name']
+        #     
+        #     # Add camera label if split camera
+        #     if camera_label:
+        #         det.camera_label = camera_label
         
-        # Skeleton and face detection for each person
-        for det in person_detections:
-            x1, y1, x2, y2 = det.bbox
-            
-            # Extract person region
-            person_region = enhanced_frame[y1:y2, x1:x2]
-            if person_region.size > 0:
-                # Get skeleton
-                skeleton = self.skeleton_detector.detect(person_region)
-                if skeleton:
-                    det.skeleton = skeleton
-                    # Adjust skeleton coordinates to full frame
-                    det.skeleton = [(x + x1, y + y1) for x, y in skeleton]
-                
-                # Face detection and recognition
-                face_bboxes = self.face_detector.detect_faces(person_region)
-                if face_bboxes:
-                    face_recognition = self.face_detector.recognize_face(
-                        person_region, face_bboxes[0]
-                    )
-                    if face_recognition:
-                        det.face_confidence = face_recognition['confidence']
-                        det.is_trusted = face_recognition['is_trusted']
-                        det.face_name = face_recognition['name']
-            
-            # Add camera label if split camera
-            if camera_label:
+        # Add camera label for split cameras
+        if camera_label:
+            for det in person_detections:
                 det.camera_label = camera_label
         
         return person_detections
@@ -726,7 +729,7 @@ class EnhancedSecuritySystem:
         overlay_writer = SharedFrameWriter("camera_overlay", (config.camera.height, config.camera.width, 3))
         
         # Write overlays every frame (no conditions) to prevent flickering
-        min_write_interval = 0.05  # Maximum 20 FPS for overlays - Increased from 0.1 to 0.05 for less latency
+        min_write_interval = 0.03  # Maximum 33 FPS for overlays - Increased from 0.05 to 0.03 for ultra-low latency
         last_write_time = 0.0
         
         while self.running:
@@ -747,7 +750,7 @@ class EnhancedSecuritySystem:
                         overlay_writer.write(frame_with_overlays)
                         last_write_time = current_time
                 
-                time.sleep(0.05)  # Check every 50ms (20 Hz)
+                time.sleep(0.02)  # Check every 20ms (50 Hz)
                 
             except Exception as e:
                 logger.error(f"Overlay writer error: {e}")
