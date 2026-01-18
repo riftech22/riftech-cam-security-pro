@@ -308,49 +308,33 @@ async def stream_video(
         frame_count = 0
         last_fps_check = time.time()
         fps_counter = 0
-        consecutive_errors = 0
-        max_consecutive_errors = 10
+        last_valid_frame = None
         
         while True:
             try:
-                # Method 1: Try reading with SharedFrameReader (from overlay file)
+                # Read directly from file (no SharedFrameReader wrapper)
                 frame = None
                 try:
-                    shared_frame_reader = SharedFrameReader("camera_overlay")
-                    frame = shared_frame_reader.read()
+                    with open(frame_file, 'rb') as f:
+                        jpeg_data = f.read()
+                    
+                    # Decode JPEG
+                    frame = cv2.imdecode(np.frombuffer(jpeg_data, np.uint8), cv2.IMREAD_COLOR)
+                    
+                    if frame is not None:
+                        last_valid_frame = frame
                 except Exception as e:
-                    logger.debug(f"SharedFrameReader error: {e}")
+                    logger.debug(f"Direct file read error: {e}")
                     frame = None
                 
-                if frame is None:
-                    # Method 2: Fallback to direct file reading
-                    try:
-                        with open(frame_file, 'rb') as f:
-                            jpeg_data = f.read()
-                        
-                        # Decode JPEG
-                        frame = cv2.imdecode(np.frombuffer(jpeg_data, np.uint8), cv2.IMREAD_COLOR)
-                        
-                        if frame is None:
-                            raise ValueError("Failed to decode JPEG")
-                    except Exception as e:
-                        logger.debug(f"Direct file read error: {e}")
-                        frame = None
-                
-                if frame is None:
-                    # Create error frame
+                # Use last valid frame if current read failed
+                if frame is None and last_valid_frame is not None:
+                    frame = last_valid_frame
+                elif frame is None:
+                    # Create error frame (only if never got a valid frame)
                     frame = np.zeros((height, int(height * 16 / 9), 3), np.uint8)
                     cv2.putText(frame, "Connecting...", (10, height // 2),
                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
-                    consecutive_errors += 1
-                else:
-                    consecutive_errors = 0
-                    
-                    # Draw timestamp only (keep it simple, no bounding boxes)
-                    if timestamp:
-                        timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        cv2.putText(frame, timestamp_str, (10, 30),
-                                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
                 
                 # Resize and encode
                 width = int(height * frame.shape[1] / frame.shape[0])
@@ -370,11 +354,6 @@ async def stream_video(
                     last_fps_check = current_time
                 
                 await asyncio.sleep(1.0 / fps)
-                
-                # Check if too many consecutive errors
-                if consecutive_errors >= max_consecutive_errors:
-                    logger.error(f"Too many consecutive errors: {consecutive_errors}")
-                    break
                 
             except Exception as e:
                 logger.error(f"Error in streaming: {e}")
