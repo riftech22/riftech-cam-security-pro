@@ -8,6 +8,7 @@ import base64
 import io
 import json
 import logging
+import time
 import uuid
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
@@ -313,40 +314,68 @@ async def stream_video(
     # Try enhanced security system first
     try:
         from ..security_system_v2 import enhanced_security_system
+        from ..core.frame_manager import frame_manager
         
         if enhanced_security_system.running:
-            logger.info("Using enhanced security system for streaming")
+            logger.info("Using enhanced security system for streaming (optimized)")
             
             async def generate():
+                frame_count = 0
+                last_fps_check = time.time()
+                fps_counter = 0
+                
                 while True:
                     try:
-                        # Get frame with overlays (thread-safe)
-                        draw_options = {
-                            "bounding_boxes": bbox,
-                            "timestamp": timestamp,
-                            "zones": zones,
-                            "motion_boxes": motion_boxes,
-                            "skeletons": skeletons
-                        }
-                        
-                        frame = enhanced_security_system.get_frame_with_overlays("camera", draw_options)
+                        # OPTIMIZATION: Read frame directly from shared memory
+                        # Skip get_frame_with_overlays for performance
+                        frame = frame_manager.read_frame("camera")
                         
                         if frame is None:
                             # Create error frame
                             frame = np.zeros((height, int(height * 16 / 9), 3), np.uint8)
-                            cv2.putText(frame, "No Frame Available", (10, height // 2),
+                            cv2.putText(frame, "Connecting...", (10, height // 2),
                                        cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+                        else:
+                            # OPTIMIZATION: Only draw overlays if bbox=True
+                            # For smooth streaming, minimal overhead
+                            if bbox and frame_count % 3 == 0:  # Every 3rd frame
+                                # Get tracked objects
+                                tracked_objects = enhanced_security_system.tracking_worker.get_tracked_objects()
+                                
+                                # Draw minimal bounding boxes (no skeletons, no labels)
+                                for obj in tracked_objects:
+                                    if time.time() - obj.last_seen < 2.0:
+                                        x1, y1, x2, y2 = obj.bbox
+                                        color = (0, 255, 0) if obj.is_trusted else (0, 255, 255)
+                                        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                            
+                            # Draw timestamp if enabled (every frame)
+                            if timestamp:
+                                timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                cv2.putText(frame, timestamp_str, (10, 30),
+                                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
                         
-                        # Resize to requested height
+                        # OPTIMIZATION: Use faster resize and encode
                         width = int(height * frame.shape[1] / frame.shape[0])
-                        frame = cv2.resize(frame, dsize=(width, height), interpolation=cv2.INTER_LINEAR)
+                        frame = cv2.resize(frame, dsize=(width, height), 
+                                         interpolation=cv2.INTER_LINEAR)
                         
-                        # Encode to JPEG
-                        jpeg_bytes = encode_frame_to_jpeg(frame, quality=70)
+                        # OPTIMIZATION: Lower quality for faster encoding
+                        jpeg_bytes = encode_frame_to_jpeg(frame, quality=65)
                         
                         # Yield MJPEG frame
                         yield (b'--frame\r\n'
                                b'Content-Type: image/jpeg\r\n\r\n' + jpeg_bytes + b'\r\n\r\n')
+                        
+                        # OPTIMIZATION: Calculate actual FPS
+                        frame_count += 1
+                        fps_counter += 1
+                        current_time = time.time()
+                        if current_time - last_fps_check >= 1.0:
+                            actual_fps = fps_counter / (current_time - last_fps_check)
+                            logger.debug(f"Stream FPS: {actual_fps:.1f}")
+                            fps_counter = 0
+                            last_fps_check = current_time
                         
                         # FPS control
                         await asyncio.sleep(1.0 / fps)
