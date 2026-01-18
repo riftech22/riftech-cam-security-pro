@@ -61,13 +61,14 @@ class TrackedObject:
         self.bbox = bbox
         self.confidence = confidence
         x1, y1, x2, y2 = bbox
-        self.center = ((x1 + x2) // 2, (y1 + y2) // 2)
+        # Don't assign center directly - calculate from bbox
+        center_point = ((x1 + x2) // 2, (y1 + y2) // 2)
         self.area = (x2 - x1) * (y2 - y1)
         self.last_seen = time.time()
         self.frame_count += 1
         
         # Add to path (keep last 50 points)
-        self.path_data.append((self.center, time.time()))
+        self.path_data.append((center_point, time.time()))
         if len(self.path_data) > 50:
             self.path_data.pop(0)
 
