@@ -100,7 +100,7 @@ class CaptureWorker:
         self.frame_count = 0
         self.detection_queue = None  # Set externally
         self.thread = None
-        self.motion_interval = 3  # Detect every N frames (lower = more frequent detection)
+        self.motion_interval = 1  # Detect every N frames (lower = more frequent detection) - Changed to 1 for REAL-TIME detection
         self.shared_frame_writer = None
         self.last_motion_time = 0.0
     
@@ -726,7 +726,7 @@ class EnhancedSecuritySystem:
         overlay_writer = SharedFrameWriter("camera_overlay", (config.camera.height, config.camera.width, 3))
         
         # Write overlays every frame (no conditions) to prevent flickering
-        min_write_interval = 0.1  # Maximum 10 FPS for overlays
+        min_write_interval = 0.05  # Maximum 20 FPS for overlays - Increased from 0.1 to 0.05 for less latency
         last_write_time = 0.0
         
         while self.running:
