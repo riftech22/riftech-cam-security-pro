@@ -300,108 +300,109 @@ async def stream_video(
         logger.error(f"Frame file not found: {frame_file}")
         return JSONResponse(content={"error": "Frame file not found"}, status_code=404)
     
-    try:
-        from ..security_system_v2 import enhanced_security_system
+    logger.info(f"Starting stream from file: {frame_file}")
+    
+    async def generate():
+        frame_count = 0
+        last_fps_check = time.time()
+        fps_counter = 0
+        consecutive_errors = 0
+        max_consecutive_errors = 10
         
-        if enhanced_security_system.running:
-            logger.info("Using enhanced security system for streaming")
-            
-            async def generate():
-                frame_count = 0
-                last_fps_check = time.time()
-                fps_counter = 0
-                consecutive_errors = 0
-                max_consecutive_errors = 10
+        # Try to get enhanced_security_system for drawing overlays (optional)
+        enhanced_system = None
+        try:
+            from ..security_system_v2 import enhanced_security_system
+            enhanced_system = enhanced_security_system
+            logger.info("Enhanced security system available for overlays")
+        except Exception as e:
+            logger.info(f"Enhanced security system not available: {e}")
+            enhanced_system = None
+        
+        while True:
+            try:
+                # Method 1: Try reading with SharedFrameReader
+                frame = None
+                try:
+                    shared_frame_reader = SharedFrameReader("camera")
+                    frame = shared_frame_reader.read()
+                except Exception as e:
+                    logger.debug(f"SharedFrameReader error: {e}")
+                    frame = None
                 
-                while True:
+                if frame is None:
+                    # Method 2: Fallback to direct file reading
                     try:
-                        # Method 1: Try reading with SharedFrameReader
-                        frame = None
-                        try:
-                            shared_frame_reader = SharedFrameReader("camera")
-                            frame = shared_frame_reader.read()
-                        except Exception as e:
-                            logger.debug(f"SharedFrameReader error: {e}")
-                            frame = None
+                        with open(frame_file, 'rb') as f:
+                            jpeg_data = f.read()
+                        
+                        # Decode JPEG
+                        frame = cv2.imdecode(np.frombuffer(jpeg_data, np.uint8), cv2.IMREAD_COLOR)
                         
                         if frame is None:
-                            # Method 2: Fallback to direct file reading
-                            try:
-                                with open(frame_file, 'rb') as f:
-                                    jpeg_data = f.read()
-                                
-                                # Decode JPEG
-                                frame = cv2.imdecode(np.frombuffer(jpeg_data, np.uint8), cv2.IMREAD_COLOR)
-                                
-                                if frame is None:
-                                    raise ValueError("Failed to decode JPEG")
-                            except Exception as e:
-                                logger.debug(f"Direct file read error: {e}")
-                                frame = None
-                        
-                        if frame is None:
-                            # Create error frame
-                            frame = np.zeros((height, int(height * 16 / 9), 3), np.uint8)
-                            cv2.putText(frame, "Connecting...", (10, height // 2),
-                                       cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
-                            consecutive_errors += 1
-                        else:
-                            consecutive_errors = 0
-                            
-                            # Draw overlays
-                            if bbox and frame_count % 3 == 0:
-                                try:
-                                    tracked_objects = enhanced_security_system.tracking_worker.get_tracked_objects()
-                                    for obj in tracked_objects:
-                                        if time.time() - obj.last_seen < 2.0:
-                                            x1, y1, x2, y2 = obj.bbox
-                                            color = (0, 255, 0) if obj.is_trusted else (0, 255, 255)
-                                            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-                                except Exception as e:
-                                    logger.debug(f"Error drawing bounding boxes: {e}")
-                            
-                            if timestamp:
-                                timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                cv2.putText(frame, timestamp_str, (10, 30),
-                                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-                        
-                        # Resize and encode
-                        width = int(height * frame.shape[1] / frame.shape[0])
-                        frame = cv2.resize(frame, dsize=(width, height), interpolation=cv2.INTER_LINEAR)
-                        jpeg_bytes = encode_frame_to_jpeg(frame, quality=65)
-                        
-                        yield (b'--frame\r\n'
-                               b'Content-Type: image/jpeg\r\n\r\n' + jpeg_bytes + b'\r\n\r\n')
-                        
-                        frame_count += 1
-                        fps_counter += 1
-                        current_time = time.time()
-                        if current_time - last_fps_check >= 1.0:
-                            actual_fps = fps_counter / (current_time - last_fps_check)
-                            logger.debug(f"Stream FPS: {actual_fps:.1f}")
-                            fps_counter = 0
-                            last_fps_check = current_time
-                        
-                        await asyncio.sleep(1.0 / fps)
-                        
-                        # Check if too many consecutive errors
-                        if consecutive_errors >= max_consecutive_errors:
-                            logger.error(f"Too many consecutive errors: {consecutive_errors}")
-                            break
-                        
+                            raise ValueError("Failed to decode JPEG")
                     except Exception as e:
-                        logger.error(f"Error in streaming: {e}")
-                        await asyncio.sleep(0.1)
-            
-            return StreamingResponse(
-                generate(),
-                media_type="multipart/x-mixed-replace; boundary=frame"
-            )
-        else:
-            return JSONResponse(content={"error": "Security system not running"}, status_code=503)
-    except ImportError:
-        logger.info("Enhanced security system not available")
-        return JSONResponse(content={"error": "Security system not available"}, status_code=503)
+                        logger.debug(f"Direct file read error: {e}")
+                        frame = None
+                
+                if frame is None:
+                    # Create error frame
+                    frame = np.zeros((height, int(height * 16 / 9), 3), np.uint8)
+                    cv2.putText(frame, "Connecting...", (10, height // 2),
+                               cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+                    consecutive_errors += 1
+                else:
+                    consecutive_errors = 0
+                    
+                    # Draw overlays (if enhanced_system is available)
+                    if enhanced_system and bbox and frame_count % 3 == 0:
+                        try:
+                            tracked_objects = enhanced_system.tracking_worker.get_tracked_objects()
+                            for obj in tracked_objects:
+                                if time.time() - obj.last_seen < 2.0:
+                                    x1, y1, x2, y2 = obj.bbox
+                                    color = (0, 255, 0) if obj.is_trusted else (0, 255, 255)
+                                    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                        except Exception as e:
+                            logger.debug(f"Error drawing bounding boxes: {e}")
+                    
+                    if timestamp:
+                        timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        cv2.putText(frame, timestamp_str, (10, 30),
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                
+                # Resize and encode
+                width = int(height * frame.shape[1] / frame.shape[0])
+                frame = cv2.resize(frame, dsize=(width, height), interpolation=cv2.INTER_LINEAR)
+                jpeg_bytes = encode_frame_to_jpeg(frame, quality=65)
+                
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + jpeg_bytes + b'\r\n\r\n')
+                
+                frame_count += 1
+                fps_counter += 1
+                current_time = time.time()
+                if current_time - last_fps_check >= 1.0:
+                    actual_fps = fps_counter / (current_time - last_fps_check)
+                    logger.debug(f"Stream FPS: {actual_fps:.1f}")
+                    fps_counter = 0
+                    last_fps_check = current_time
+                
+                await asyncio.sleep(1.0 / fps)
+                
+                # Check if too many consecutive errors
+                if consecutive_errors >= max_consecutive_errors:
+                    logger.error(f"Too many consecutive errors: {consecutive_errors}")
+                    break
+                
+            except Exception as e:
+                logger.error(f"Error in streaming: {e}")
+                await asyncio.sleep(0.1)
+    
+    return StreamingResponse(
+        generate(),
+        media_type="multipart/x-mixed-replace; boundary=frame"
+    )
 
 
 # ========== SYSTEM STATUS ENDPOINTS ==========
