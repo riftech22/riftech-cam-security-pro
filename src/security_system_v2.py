@@ -666,6 +666,9 @@ class EnhancedSecuritySystem:
         # Start stats updater
         threading.Thread(target=self._update_stats_loop, daemon=True).start()
         
+        # Start overlay writer (writes frames with AI overlays for web server)
+        threading.Thread(target=self._overlay_writer_loop, daemon=True).start()
+        
         logger.info("Enhanced Security System V2 started")
     
     def _update_stats_loop(self):
@@ -705,6 +708,41 @@ class EnhancedSecuritySystem:
             except Exception as e:
                 logger.error(f"Stats update error: {e}")
                 time.sleep(1.0)
+    
+    def _overlay_writer_loop(self):
+        """Write frames with AI overlays to separate file for web server"""
+        logger.info("Overlay writer loop started")
+        
+        # Create separate writer for overlays
+        overlay_writer = SharedFrameWriter("camera_overlay", (config.camera.height, config.camera.width, 3))
+        
+        overlay_interval = 3  # Write overlays every N frames
+        frame_counter = 0
+        
+        while self.running:
+            try:
+                frame_counter += 1
+                
+                # Write overlays only every N frames (performance optimization)
+                if frame_counter % overlay_interval == 0:
+                    # Get frame with overlays
+                    frame_with_overlays = self.get_frame_with_overlays("camera", {
+                        "bounding_boxes": True,
+                        "timestamp": True,
+                        "zones": True,
+                        "skeletons": True
+                    })
+                    
+                    if frame_with_overlays is not None:
+                        overlay_writer.write(frame_with_overlays)
+                
+                time.sleep(0.1)  # 10 Hz for overlay updates
+                
+            except Exception as e:
+                logger.error(f"Overlay writer error: {e}")
+                time.sleep(0.1)
+        
+        logger.info("Overlay writer loop stopped")
     
     def get_frame_with_overlays(
         self,

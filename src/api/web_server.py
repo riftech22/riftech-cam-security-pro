@@ -294,13 +294,19 @@ async def stream_video(
     
     logger.info("Streaming endpoint called")
     
-    # Check if frame file exists
-    frame_file = Path("data/shared_frames/camera.jpg")
-    if not frame_file.exists():
-        logger.error(f"Frame file not found: {frame_file}")
-        return JSONResponse(content={"error": "Frame file not found"}, status_code=404)
+    # Try to read from overlay file (with AI overlays) first, fallback to raw camera frame
+    overlay_file = Path("data/shared_frames/camera_overlay.jpg")
+    raw_file = Path("data/shared_frames/camera.jpg")
     
-    logger.info(f"Starting stream from file: {frame_file}")
+    if overlay_file.exists():
+        frame_file = overlay_file
+        logger.info(f"Using overlay file with AI detection: {frame_file}")
+    elif raw_file.exists():
+        frame_file = raw_file
+        logger.info(f"Using raw camera frame: {frame_file}")
+    else:
+        logger.error("No frame file found")
+        return JSONResponse(content={"error": "Frame file not found"}, status_code=404)
     
     async def generate():
         frame_count = 0
