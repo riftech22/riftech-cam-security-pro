@@ -309,16 +309,6 @@ async def stream_video(
         consecutive_errors = 0
         max_consecutive_errors = 10
         
-        # Try to get enhanced_security_system for drawing overlays (optional)
-        enhanced_system = None
-        try:
-            from ..security_system_v2 import enhanced_security_system
-            enhanced_system = enhanced_security_system
-            logger.info("Enhanced security system available for overlays")
-        except Exception as e:
-            logger.info(f"Enhanced security system not available: {e}")
-            enhanced_system = None
-        
         while True:
             try:
                 # Method 1: Try reading with SharedFrameReader
@@ -354,18 +344,7 @@ async def stream_video(
                 else:
                     consecutive_errors = 0
                     
-                    # Draw overlays (if enhanced_system is available)
-                    if enhanced_system and bbox and frame_count % 3 == 0:
-                        try:
-                            tracked_objects = enhanced_system.tracking_worker.get_tracked_objects()
-                            for obj in tracked_objects:
-                                if time.time() - obj.last_seen < 2.0:
-                                    x1, y1, x2, y2 = obj.bbox
-                                    color = (0, 255, 0) if obj.is_trusted else (0, 255, 255)
-                                    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-                        except Exception as e:
-                            logger.debug(f"Error drawing bounding boxes: {e}")
-                    
+                    # Draw timestamp only (keep it simple, no bounding boxes)
                     if timestamp:
                         timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         cv2.putText(frame, timestamp_str, (10, 30),
