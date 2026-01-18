@@ -1,9 +1,10 @@
 """
 Metadata Manager - Shared Tracking Data
-Manages lightweight tracking metadata (no frame copies)
+Manages lightweight tracking metadata (no frame copies!)
 """
 
 import numpy as np
+import cv2
 import threading
 from typing import Optional, List, Dict
 from multiprocessing.shared_memory import SharedMemory

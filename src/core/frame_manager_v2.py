@@ -4,6 +4,7 @@ High-performance zero-copy frame sharing with ping-pong buffer
 """
 
 import numpy as np
+import cv2
 import threading
 from typing import Optional, Dict, Tuple
 from multiprocessing.shared_memory import SharedMemory
