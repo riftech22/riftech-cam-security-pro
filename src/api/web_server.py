@@ -294,19 +294,15 @@ async def stream_video(
     
     logger.info("Streaming endpoint called")
     
-    # Try to read from overlay file (with AI overlays) first, fallback to raw camera frame
+    # Read from overlay file (with AI bounding boxes, skeletons, timestamp)
     overlay_file = Path("data/shared_frames/camera_overlay.jpg")
-    raw_file = Path("data/shared_frames/camera.jpg")
     
     if overlay_file.exists():
         frame_file = overlay_file
         logger.info(f"Using overlay file with AI detection: {frame_file}")
-    elif raw_file.exists():
-        frame_file = raw_file
-        logger.info(f"Using raw camera frame: {frame_file}")
     else:
-        logger.error("No frame file found")
-        return JSONResponse(content={"error": "Frame file not found"}, status_code=404)
+        logger.error("Overlay frame file not found")
+        return JSONResponse(content={"error": "Overlay frame file not found"}, status_code=404)
     
     async def generate():
         frame_count = 0
@@ -317,10 +313,10 @@ async def stream_video(
         
         while True:
             try:
-                # Method 1: Try reading with SharedFrameReader
+                # Method 1: Try reading with SharedFrameReader (from overlay file)
                 frame = None
                 try:
-                    shared_frame_reader = SharedFrameReader("camera")
+                    shared_frame_reader = SharedFrameReader("camera_overlay")
                     frame = shared_frame_reader.read()
                 except Exception as e:
                     logger.debug(f"SharedFrameReader error: {e}")
