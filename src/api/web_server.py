@@ -4,13 +4,10 @@ Provides REST API and WebSocket for real-time monitoring
 """
 
 import asyncio
-import base64
-import io
 import json
 import logging
 import time
-import uuid
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 from datetime import datetime, timedelta
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -25,8 +22,6 @@ from fastapi import (
     WebSocketDisconnect,
     Depends,
     HTTPException,
-    status,
-    Request,
     Response,
     Header
 )
@@ -44,7 +39,6 @@ from starlette.middleware.sessions import SessionMiddleware
 from ..core.config import config
 from ..core.logger import logger
 from ..core.shared_frame import SharedFrameReader
-from ..database.models import db
 
 # Ensure data directory exists
 Path("data").mkdir(parents=True, exist_ok=True)
@@ -246,7 +240,7 @@ app.mount("/static", StaticFiles(directory="web/static"), name="static")
 
 # Shared frame file path
 SHARED_FRAME_PATH = Path("data/shared_frames/camera.jpg")
-SHARED_STATS_PATH = Path("data/shared_frames/camera.meta")
+STATS_JSON_PATH = Path("data/stats.json")
 
 
 # ========== AUTHENTICATION ENDPOINTS ==========
@@ -293,26 +287,11 @@ async def logout(current_user: str = Depends(get_current_user)):
 async def stream_video(
     bbox: bool = True,
     timestamp: bool = True,
-    zones: bool = True,
-    skeletons: bool = True,
-    motion_boxes: bool = False,
     fps: int = 15,
     height: int = 720
 ):
-    """
-    Stream live video with AI detection overlay (MJPEG)
+    """Stream live video with AI detection overlay (MJPEG)"""
     
-    Query Parameters:
-        bbox: Show bounding boxes (default: True)
-        timestamp: Show timestamp (default: True)
-        zones: Show zones (default: True)
-        skeletons: Show skeletons (default: True)
-        motion_boxes: Show motion boxes (default: False)
-        fps: Streaming FPS (default: 15)
-        height: Frame height (default: 720)
-    """
-    
-    # Try enhanced security system
     try:
         from ..security_system_v2 import enhanced_security_system
         
@@ -383,69 +362,19 @@ async def stream_video(
         return JSONResponse(content={"error": "Security system not available"}, status_code=503)
 
 
-@app.get("/api/frame.jpg")
-async def get_latest_frame(
-    bbox: bool = True,
-    timestamp: bool = True,
-    zones: bool = True,
-    skeletons: bool = True,
-    height: int = 720
-):
-    """
-    Get latest frame with AI detection overlay (single image)
-    
-    Query Parameters:
-        bbox: Show bounding boxes (default: True)
-        timestamp: Show timestamp (default: True)
-        zones: Show zones (default: True)
-        skeletons: Show skeletons (default: True)
-        height: Frame height (default: 720)
-    """
-    try:
-        from ..security_system_v2 import enhanced_security_system
-        
-        if enhanced_security_system.running:
-            draw_options = {
-                "bounding_boxes": bbox,
-                "timestamp": timestamp,
-                "zones": zones,
-                "motion_boxes": False,
-                "skeletons": skeletons
-            }
-            
-            frame = enhanced_security_system.get_frame_with_overlays("camera", draw_options)
-            
-            if frame is None:
-                raise HTTPException(status_code=503, detail="Frame not available")
-            
-            width = int(height * frame.shape[1] / frame.shape[0])
-            frame = cv2.resize(frame, dsize=(width, height), interpolation=cv2.INTER_AREA)
-            jpeg_bytes = encode_frame_to_jpeg(frame, quality=85)
-            
-            return Response(
-                content=jpeg_bytes,
-                media_type="image/jpeg",
-                headers={"Cache-Control": "no-store"}
-            )
-    except ImportError:
-        pass
-    
-    raise HTTPException(status_code=503, detail="Frame not available")
-
-
 # ========== SYSTEM STATUS ENDPOINTS ==========
 
 @app.get("/api/stats")
 async def get_stats():
     """Get system statistics"""
     
-    # Try to read from shared file first
-    if SHARED_STATS_PATH.exists():
+    # Try to read from shared stats.json (written by security system)
+    if STATS_JSON_PATH.exists():
         try:
-            stats_data = json.loads(SHARED_STATS_PATH.read_text())
+            stats_data = json.loads(STATS_JSON_PATH.read_text())
             return JSONResponse(content=stats_data)
         except Exception as e:
-            logger.error(f"Error reading shared stats: {e}")
+            logger.error(f"Error reading stats: {e}")
     
     # Fallback to enhanced_security_system
     try:
