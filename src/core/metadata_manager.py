@@ -47,7 +47,7 @@ class SharedMetadata:
         self._create()
     
     def _create(self):
-        """Create shared memory"""
+        """Create shared memory (or attach if exists)"""
         try:
             from multiprocessing import Lock
             self._lock = Lock()
@@ -56,14 +56,18 @@ class SharedMetadata:
             # Each object: id(4) + bbox(16) + confidence(4) + trusted(1) + face_name(32) + label(8) + timestamp(8) ≈ 73 bytes
             metadata_size = self.max_objects * 100  # 100 bytes per object (safe margin)
             
-            self.shm = SharedMemory(name=self.name, create=True, size=metadata_size)
-            self.np_array = np.zeros(metadata_size, dtype=np.uint8)
+            try:
+                self.shm = SharedMemory(name=self.name, create=True, size=metadata_size)
+                self.np_array = np.zeros(metadata_size, dtype=np.uint8)
+                logger.debug(f"Created shared metadata: {self.name} ({metadata_size} bytes)")
+            except FileNotFoundError:
+                # Metadata already exists, attach instead
+                return self.attach()
             
-            logger.debug(f"Created shared metadata: {self.name} ({metadata_size} bytes)")
             return True
         except Exception as e:
-            logger.error(f"Failed to create shared metadata {self.name}: {e}")
-            return False
+            # Try to attach if create fails
+            return self.attach()
     
     def attach(self):
         """Attach to existing shared memory"""
