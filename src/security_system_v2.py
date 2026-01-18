@@ -4,7 +4,7 @@ High-performance security system with multi-process architecture
 Uses shared memory, motion-first detection, and real-time streaming
 """
 
-import cv2
+import cv2 as cv2
 import numpy as np
 import time
 import threading
@@ -19,8 +19,8 @@ from queue import Queue, Empty
 
 from .core.config import config
 from .core.logger import logger
-from .core.frame_manager import frame_manager
-from .core.shared_frame import SharedFrameWriter
+from .core.frame_manager_v2 import frame_manager_v2
+from .core.metadata_manager import metadata_manager
 from .database.models import db
 
 from .detection.yolo_detector import YOLODetector
@@ -91,17 +91,18 @@ class CaptureWorker:
         self,
         camera,
         camera_name: str = "camera",
-        motion_detector: Optional[EnhancedMotionDetector] = None
+        motion_detector: Optional[EnhancedMotionDetector] = None,
+        is_v380_split: bool = False
     ):
         self.camera = camera
         self.camera_name = camera_name
         self.motion_detector = motion_detector
+        self.is_v380_split = is_v380_split
         self.running = False
         self.frame_count = 0
         self.detection_queue = None  # Set externally
         self.thread = None
         self.motion_interval = 1  # Detect every N frames (lower = more frequent detection) - Changed to 1 for REAL-TIME detection
-        self.shared_frame_writer = None
         self.last_motion_time = 0.0
     
     def start(self):
@@ -156,13 +157,15 @@ class CaptureWorker:
                         return_mask=False
                     )
                 
-                # Write to shared memory (zero-copy)
-                if not frame_manager.write_frame(self.camera_name, full_frame):
-                    logger.error(f"Failed to write frame to shared memory: {self.camera_name}")
-                
-                # Also write to file-based shared frame (for web server)
-                if self.shared_frame_writer:
-                    self.shared_frame_writer.write(full_frame)
+                # Write to V2 ring buffers (V380 split camera: 3 slots, Regular: 1 slot)
+                if self.is_v380_split:
+                    # Write to 3 raw slots for split camera
+                    frame_manager_v2.write_frame("camera_top_raw", top_frame)
+                    frame_manager_v2.write_frame("camera_bottom_raw", bottom_frame)
+                    frame_manager_v2.write_frame("camera_full_raw", full_frame)
+                else:
+                    # Write to 1 raw slot for regular camera
+                    frame_manager_v2.write_frame("camera_raw", full_frame)
                 
                 # Send to detection queue ONLY if motion
                 if has_motion or self.frame_count % self.motion_interval == 0:
@@ -602,14 +605,33 @@ class EnhancedSecuritySystem:
         if not self.camera.initialize():
             raise RuntimeError("Failed to initialize camera")
         
-        # Register frame in shared memory
+        # Initialize V2 ring buffers (6 slots total)
         frame_shape = (config.camera.height, config.camera.width, 3)
-        if not frame_manager.register_frame("camera", frame_shape):
-            logger.warning("Frame already registered, attaching...")
         
-        # Initialize file-based shared frame (for web server)
-        frame_shape = (config.camera.height, config.camera.width, 3)
-        self.shared_frame_writer = SharedFrameWriter("camera", frame_shape)
+        if self.is_v380_split:
+            # Create 6 ring buffers for split camera
+            frame_manager_v2.create_ring_buffer("camera_top_raw", frame_shape)
+            frame_manager_v2.create_ring_buffer("camera_top_overlay", frame_shape)
+            frame_manager_v2.create_ring_buffer("camera_bottom_raw", frame_shape)
+            frame_manager_v2.create_ring_buffer("camera_bottom_overlay", frame_shape)
+            frame_manager_v2.create_ring_buffer("camera_full_raw", frame_shape)
+            frame_manager_v2.create_ring_buffer("camera_full_overlay", frame_shape)
+            
+            # Create metadata buffers
+            metadata_manager.create_metadata("metadata_top", max_objects=20)
+            metadata_manager.create_metadata("metadata_bottom", max_objects=20)
+            metadata_manager.create_metadata("metadata_full", max_objects=40)
+            
+            logger.info("Created 6 ring buffers + 3 metadata buffers for split camera")
+        else:
+            # Create 2 ring buffers for regular camera
+            frame_manager_v2.create_ring_buffer("camera_raw", frame_shape)
+            frame_manager_v2.create_ring_buffer("camera_overlay", frame_shape)
+            
+            # Create metadata buffer
+            metadata_manager.create_metadata("metadata", max_objects=20)
+            
+            logger.info("Created 2 ring buffers + 1 metadata buffer for regular camera")
         
         # Create directories
         Path(config.paths.alerts_dir).mkdir(parents=True, exist_ok=True)
@@ -632,10 +654,10 @@ class EnhancedSecuritySystem:
         self.capture_worker = CaptureWorker(
             self.camera,
             "camera",
-            self.motion_detector
+            self.motion_detector,
+            self.is_v380_split
         )
         self.capture_worker.detection_queue = self.detection_queue
-        self.capture_worker.shared_frame_writer = self.shared_frame_writer
         
         self.detection_worker = DetectionWorker(
             self.yolo_detector,
@@ -722,14 +744,11 @@ class EnhancedSecuritySystem:
                 time.sleep(1.0)
     
     def _overlay_writer_loop(self):
-        """Write frames with AI overlays to separate file for web server"""
+        """Write frames with AI overlays to V2 ring buffer for web server"""
         logger.info("Overlay writer loop started")
         
-        # Create separate writer for overlays
-        overlay_writer = SharedFrameWriter("camera_overlay", (config.camera.height, config.camera.width, 3))
-        
         # Write overlays every frame (no conditions) to prevent flickering
-        min_write_interval = 0.03  # Maximum 33 FPS for overlays - Increased from 0.05 to 0.03 for ultra-low latency
+        min_write_interval = 0.03  # Maximum 33 FPS for overlays - Ultra-low latency
         last_write_time = 0.0
         
         while self.running:
@@ -747,7 +766,12 @@ class EnhancedSecuritySystem:
                     })
                     
                     if frame_with_overlays is not None:
-                        overlay_writer.write(frame_with_overlays)
+                        # Write to V2 ring buffer (not file!)
+                        if self.is_v380_split:
+                            frame_manager_v2.write_frame("camera_full_overlay", frame_with_overlays)
+                        else:
+                            frame_manager_v2.write_frame("camera_overlay", frame_with_overlays)
+                        
                         last_write_time = current_time
                 
                 time.sleep(0.02)  # Check every 20ms (50 Hz)
@@ -787,8 +811,12 @@ class EnhancedSecuritySystem:
                 "skeletons": True
             }
         
-        # Read frame from shared memory
-        frame = frame_manager.read_frame(camera_name)
+        # Read frame from V2 ring buffer (use force_read for web server style)
+        if self.is_v380_split:
+            frame = frame_manager_v2.force_read_frame("camera_full_raw")
+        else:
+            frame = frame_manager_v2.force_read_frame("camera_raw")
+        
         if frame is None:
             return None
         
@@ -938,8 +966,9 @@ class EnhancedSecuritySystem:
             except Exception as e:
                 logger.error(f"Failed to stop Telegram command handler: {e}")
         
-        # Cleanup shared memory
-        frame_manager.close_all()
+        # Cleanup V2 shared memory
+        frame_manager_v2.close_all()
+        metadata_manager.close_all()
         
         logger.info("Enhanced Security System V2 stopped")
     
@@ -960,7 +989,7 @@ class EnhancedSecuritySystem:
         if self.camera:
             self.camera.cleanup()
         
-        frame_manager.cleanup_all()
+        frame_manager_v2.cleanup_all()
         
         logger.info("Enhanced Security System V2 cleaned up")
 
