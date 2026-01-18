@@ -19,7 +19,9 @@ class SharedMemoryFrame:
         self.name = name
         self.shape = shape
         self.dtype = dtype
-        self.size = int(np.prod(shape)) * dtype.itemsize
+        # Convert dtype to numpy dtype to get itemsize
+        np_dtype = np.dtype(dtype)
+        self.size = int(np.prod(shape)) * np_dtype.itemsize
         self.shm: Optional[SharedMemory] = None
         self.np_array: Optional[np.ndarray] = None
         self._lock = threading.Lock()
