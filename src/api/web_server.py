@@ -288,9 +288,81 @@ async def logout(current_user: str = Depends(get_current_user)):
 # ========== VIDEO STREAMING ==========
 
 @app.get("/api/stream")
-async def stream_video():
-    """Stream live video with AI detection overlay"""
+async def stream_video(
+    bbox: bool = True,
+    timestamp: bool = True,
+    zones: bool = True,
+    skeletons: bool = True,
+    motion_boxes: bool = False,
+    fps: int = 15,
+    height: int = 720
+):
+    """
+    Stream live video with AI detection overlay (MJPEG)
     
+    Query Parameters:
+        bbox: Show bounding boxes (default: True)
+        timestamp: Show timestamp (default: True)
+        zones: Show zones (default: True)
+        skeletons: Show skeletons (default: True)
+        motion_boxes: Show motion boxes (default: False)
+        fps: Streaming FPS (default: 15)
+        height: Frame height (default: 720)
+    """
+    
+    # Try enhanced security system first
+    try:
+        from ..security_system_v2 import enhanced_security_system
+        
+        if enhanced_security_system.running:
+            logger.info("Using enhanced security system for streaming")
+            
+            async def generate():
+                while True:
+                    try:
+                        # Get frame with overlays (thread-safe)
+                        draw_options = {
+                            "bounding_boxes": bbox,
+                            "timestamp": timestamp,
+                            "zones": zones,
+                            "motion_boxes": motion_boxes,
+                            "skeletons": skeletons
+                        }
+                        
+                        frame = enhanced_security_system.get_frame_with_overlays("camera", draw_options)
+                        
+                        if frame is None:
+                            # Create error frame
+                            frame = np.zeros((height, int(height * 16 / 9), 3), np.uint8)
+                            cv2.putText(frame, "No Frame Available", (10, height // 2),
+                                       cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+                        
+                        # Resize to requested height
+                        width = int(height * frame.shape[1] / frame.shape[0])
+                        frame = cv2.resize(frame, dsize=(width, height), interpolation=cv2.INTER_LINEAR)
+                        
+                        # Encode to JPEG
+                        jpeg_bytes = encode_frame_to_jpeg(frame, quality=70)
+                        
+                        # Yield MJPEG frame
+                        yield (b'--frame\r\n'
+                               b'Content-Type: image/jpeg\r\n\r\n' + jpeg_bytes + b'\r\n\r\n')
+                        
+                        # FPS control
+                        await asyncio.sleep(1.0 / fps)
+                        
+                    except Exception as e:
+                        logger.error(f"Error in streaming: {e}")
+                        await asyncio.sleep(0.1)
+            
+            return StreamingResponse(
+                generate(),
+                media_type="multipart/x-mixed-replace; boundary=frame"
+            )
+    except ImportError:
+        logger.info("Enhanced security system not available, using old system")
+    
+    # Fallback to old system
     async def generate():
         frame_count = 0
         while True:
@@ -328,6 +400,83 @@ async def stream_video():
     return StreamingResponse(
         generate(),
         media_type="multipart/x-mixed-replace; boundary=frame"
+    )
+
+
+@app.get("/api/frame.jpg")
+async def get_latest_frame(
+    bbox: bool = True,
+    timestamp: bool = True,
+    zones: bool = True,
+    skeletons: bool = True,
+    height: int = 720
+):
+    """
+    Get latest frame with AI detection overlay (single image)
+    
+    Query Parameters:
+        bbox: Show bounding boxes (default: True)
+        timestamp: Show timestamp (default: True)
+        zones: Show zones (default: True)
+        skeletons: Show skeletons (default: True)
+        height: Frame height (default: 720)
+    """
+    # Try enhanced security system first
+    try:
+        from ..security_system_v2 import enhanced_security_system
+        
+        if enhanced_security_system.running:
+            draw_options = {
+                "bounding_boxes": bbox,
+                "timestamp": timestamp,
+                "zones": zones,
+                "motion_boxes": False,
+                "skeletons": skeletons
+            }
+            
+            frame = enhanced_security_system.get_frame_with_overlays("camera", draw_options)
+            
+            if frame is None:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Frame not available"
+                )
+            
+            # Resize to requested height
+            width = int(height * frame.shape[1] / frame.shape[0])
+            frame = cv2.resize(frame, dsize=(width, height), interpolation=cv2.INTER_AREA)
+            
+            # Encode to JPEG
+            jpeg_bytes = encode_frame_to_jpeg(frame, quality=85)
+            
+            return Response(
+                content=jpeg_bytes,
+                media_type="image/jpeg",
+                headers={"Cache-Control": "no-store"}
+            )
+    except ImportError:
+        pass
+    
+    # Fallback to old system
+    if security_system and security_system.current_frame is not None:
+        frame = security_system.current_frame.copy()
+        
+        # Resize to requested height
+        width = int(height * frame.shape[1] / frame.shape[0])
+        frame = cv2.resize(frame, dsize=(width, height), interpolation=cv2.INTER_AREA)
+        
+        # Encode to JPEG
+        jpeg_bytes = encode_frame_to_jpeg(frame, quality=85)
+        
+        return Response(
+            content=jpeg_bytes,
+            media_type="image/jpeg",
+            headers={"Cache-Control": "no-store"}
+        )
+    
+    raise HTTPException(
+        status_code=503,
+        detail="Frame not available"
     )
 
 
