@@ -43,6 +43,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from ..core.config import config
 from ..core.logger import logger
+from ..core.shared_frame import SharedFrameReader
 from ..database.models import db
 
 # Ensure data directory exists
@@ -315,7 +316,6 @@ async def stream_video(
     try:
         from ..security_system_v2 import enhanced_security_system
         from ..core.frame_manager import frame_manager
-from ..core.shared_frame import SharedFrameReader
         
         if enhanced_security_system.running:
             logger.info("Using enhanced security system for streaming (optimized")
