@@ -245,8 +245,8 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="web/static"), name="static")
 
 # Shared frame file path
-SHARED_FRAME_PATH = Path("data/shared_frame.jpg")
-SHARED_STATS_PATH = Path("data/shared_stats.json")
+SHARED_FRAME_PATH = Path("data/shared_frames/camera.jpg")
+SHARED_STATS_PATH = Path("data/shared_frames/camera.meta")
 
 
 # ========== AUTHENTICATION ENDPOINTS ==========
