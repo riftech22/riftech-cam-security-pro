@@ -32,20 +32,37 @@ class SkeletonDetector:
         """Load MediaPipe pose model"""
         try:
             logger.info("Initializing MediaPipe pose detector")
-            self.pose = mp.solutions.pose.Pose(
-                static_image_mode=False,
-                model_complexity=1,
-                smooth_landmarks=True,
-                enable_segmentation=False,
-                smooth_segmentation=False,
-                min_detection_confidence=0.5,
-                min_tracking_confidence=0.5
-            )
+            # Try new API first
+            try:
+                from mediapipe.tasks import python
+                from mediapipe.tasks.python import vision
+                self.pose = vision.PoseLandmarker.create_from_options(
+                    vision.PoseLandmarkerOptions(
+                        base_options=python.BaseOptions(model_asset_path=''),
+                        num_poses=1,
+                        min_pose_detection_confidence=0.5,
+                        min_pose_presence_confidence=0.5,
+                        min_tracking_confidence=0.5
+                    )
+                )
+            except (ImportError, AttributeError):
+                # Fallback to old API
+                self.pose = mp.solutions.pose.Pose(
+                    static_image_mode=False,
+                    model_complexity=1,
+                    smooth_landmarks=True,
+                    enable_segmentation=False,
+                    smooth_segmentation=False,
+                    min_detection_confidence=0.5,
+                    min_tracking_confidence=0.5
+                )
             self._initialized = True
             logger.info("MediaPipe pose detector initialized")
         except Exception as e:
             logger.error(f"Failed to initialize MediaPipe: {e}")
-            raise
+            logger.warning("Skeleton detection disabled, continuing without it")
+            self.enabled = False
+            self._initialized = True
     
     def detect(self, frame: np.ndarray) -> Optional[List[Tuple[int, int]]]:
         """
