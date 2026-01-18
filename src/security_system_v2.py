@@ -717,27 +717,41 @@ class EnhancedSecuritySystem:
         # Create separate writer for overlays
         overlay_writer = SharedFrameWriter("camera_overlay", (config.camera.height, config.camera.width, 3))
         
-        overlay_interval = 3  # Write overlays every N frames
+        # Write overlays every frame if there are tracked objects, otherwise every 5 frames
+        write_interval_without_objects = 5
         frame_counter = 0
+        last_write_time = 0.0
+        min_write_interval = 0.1  # Minimum 100ms between writes (10 FPS)
         
         while self.running:
             try:
-                frame_counter += 1
+                current_time = time.time()
                 
-                # Write overlays only every N frames (performance optimization)
-                if frame_counter % overlay_interval == 0:
-                    # Get frame with overlays
-                    frame_with_overlays = self.get_frame_with_overlays("camera", {
-                        "bounding_boxes": True,
-                        "timestamp": True,
-                        "zones": True,
-                        "skeletons": True
-                    })
+                # Check if enough time passed since last write
+                if current_time - last_write_time >= min_write_interval:
+                    frame_counter += 1
                     
-                    if frame_with_overlays is not None:
-                        overlay_writer.write(frame_with_overlays)
+                    # Get tracked objects count
+                    tracked_objects = self.tracking_worker.get_tracked_objects() if self.tracking_worker else []
+                    has_objects = len(tracked_objects) > 0
+                    
+                    # Write more frequently if there are objects detected
+                    should_write = has_objects or (frame_counter % write_interval_without_objects == 0)
+                    
+                    if should_write:
+                        # Get frame with overlays
+                        frame_with_overlays = self.get_frame_with_overlays("camera", {
+                            "bounding_boxes": True,
+                            "timestamp": True,
+                            "zones": True,
+                            "skeletons": True
+                        })
+                        
+                        if frame_with_overlays is not None:
+                            overlay_writer.write(frame_with_overlays)
+                            last_write_time = current_time
                 
-                time.sleep(0.1)  # 10 Hz for overlay updates
+                time.sleep(0.05)  # Check every 50ms (20 Hz)
                 
             except Exception as e:
                 logger.error(f"Overlay writer error: {e}")
