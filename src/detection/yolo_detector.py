@@ -59,6 +59,8 @@ class YOLODetector:
             # Run YOLO inference
             results = self.model(frame, verbose=False, conf=self.confidence)[0]
             
+            logger.debug(f"YOLO inference complete - total boxes: {len(results.boxes)}")
+            
             detections = []
             
             # Process results

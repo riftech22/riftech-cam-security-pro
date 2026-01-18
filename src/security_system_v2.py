@@ -236,11 +236,14 @@ class DetectionWorker:
         """Main detection loop"""
         logger.info("Detection loop started")
         
+        frames_processed = 0
+        
         while self.running:
             try:
                 # Get frame from queue (blocking but OK)
                 item = self.detection_queue.get(timeout=1.0)
                 
+                frames_processed += 1
                 start_time = time.time()
                 
                 camera_name = item['camera']
@@ -270,9 +273,8 @@ class DetectionWorker:
                     split_point = frame.shape[0] // 2
                     for det in bottom_detections:
                         x1, y1, x2, y2 = det.bbox
-                        # Create new bbox and center (don't assign directly to avoid read-only issues)
+                        # Create new bbox (don't assign directly to avoid read-only issues)
                         new_bbox = (x1, y1 + split_point, x2, y2 + split_point)
-                        new_center = ((x1 + x2) // 2, (y1 + y2) // 2 + split_point)
                         
                         # Update detection object
                         det.bbox = new_bbox
@@ -288,6 +290,8 @@ class DetectionWorker:
                 # Send to tracking queue
                 if self.tracking_queue:
                     self.tracking_queue.put(result)
+                
+                logger.info(f"Processing frame #{frames_processed} from camera: {camera_name} - People detected: {len(result.persons)}")
                 
                 # Update stats
                 elapsed = (time.time() - start_time) * 1000
