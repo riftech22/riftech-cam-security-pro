@@ -1,0 +1,21 @@
+[Unit]
+Description=Riftech Security System V2 - High-Performance AI-Powered Security Camera
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/root/riftech-cam-security-pro
+Environment="PATH=/root/riftech-cam-security-pro/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/root/riftech-cam-security-pro/venv/bin/python /root/riftech-cam-security-pro/main_v2.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=riftech-security-v2
+
+[Install]
+WantedBy=multi-user.target
