@@ -184,7 +184,10 @@ class Config:
                 # Load sections
                 self.camera = CameraConfig(**config_data.get('camera', {}))
                 self.detection = DetectionConfig(**config_data.get('detection', {}))
-                self.paths = PathsConfig(**config_data.get('paths', {}))
+                # Only pass base_dir to PathsConfig, other paths are properties
+                paths_data = config_data.get('paths', {})
+                base_dir_value = paths_data.get('base_dir', None)
+                self.paths = PathsConfig(base_dir=base_dir_value)
                 self.database = DatabaseConfig(**config_data.get('database', {}))
                 self.logging = LoggingConfig(**config_data.get('logging', {}))
                 self.alerts = AlertsConfig(**config_data.get('alerts', {}))
