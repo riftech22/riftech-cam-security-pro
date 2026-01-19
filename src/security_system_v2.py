@@ -363,8 +363,9 @@ class DetectionWorker:
 class TrackingWorker:
     """Object tracking worker"""
     
-    def __init__(self, zone_manager: ZoneManager):
+    def __init__(self, zone_manager: ZoneManager, is_v380_split: bool = False):
         self.zone_manager = zone_manager
+        self.is_v380_split = is_v380_split
         self.tracked_objects = {}  # id -> TrackedObject
         self.next_object_id = 1
         
@@ -696,7 +697,7 @@ class EnhancedSecuritySystem:
         self.detection_worker.detection_queue = self.detection_queue
         self.detection_worker.tracking_queue = self.tracking_queue
         
-        self.tracking_worker = TrackingWorker(self.zone_manager)
+        self.tracking_worker = TrackingWorker(self.zone_manager, self.is_v380_split)
         self.tracking_worker.tracking_queue = self.tracking_queue
         
         # Set callbacks
