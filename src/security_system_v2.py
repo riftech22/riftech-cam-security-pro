@@ -268,11 +268,19 @@ class DetectionWorker:
                 )
                 
                 if top_frame is not None and bottom_frame is not None:
-                    # V380 split camera
+                    # V380 split camera - DETECT TOP AND BOTTOM COMPLETELY SEPARATELY
+                    logger.info(f"V380 SPLIT: Processing TOP camera frame separately...")
                     top_detections = self._process_frame(top_frame, "top")
-                    bottom_detections = self._process_frame(bottom_frame, "bottom")
+                    top_classes = [det.class_name for det in top_detections]
+                    logger.info(f"V380 SPLIT: TOP camera detected {len(top_detections)} objects: {', '.join(set(top_classes))}")
                     
-                    # Adjust bottom frame coordinates
+                    logger.info(f"V380 SPLIT: Processing BOTTOM camera frame separately...")
+                    bottom_detections = self._process_frame(bottom_frame, "bottom")
+                    bottom_classes = [det.class_name for det in bottom_detections]
+                    logger.info(f"V380 SPLIT: BOTTOM camera detected {len(bottom_detections)} objects: {', '.join(set(bottom_classes))}")
+                    
+                    # Adjust bottom frame coordinates for full-frame display
+                    # Bottom frame starts at half the full frame height
                     split_point = frame.shape[0] // 2
                     for det in bottom_detections:
                         x1, y1, x2, y2 = det.bbox
@@ -282,10 +290,11 @@ class DetectionWorker:
                         # Update detection object
                         det.bbox = new_bbox
                         # Note: PersonDetection center is a property, set through bbox
-                        det.camera_label = "bottom"
+                        det.camera_label = "bottom"  # Already set in _process_frame
                     
                     # Combine all detections (not just persons)
                     result.persons = top_detections + bottom_detections
+                    logger.info(f"V380 SPLIT: Total objects detected (top + bottom): {len(result.persons)}")
                 else:
                     # Regular camera - process all detections
                     detections = self._process_frame(frame, "")
@@ -495,16 +504,23 @@ class TrackingWorker:
         logger.info("Tracking loop stopped")
     
     def _is_same_object(self, person: PersonDetection, tracked_obj: TrackedObject, camera: str) -> bool:
-        """Check if person is same as tracked object"""
-        # Simple matching based on distance
+        """Check if person is same as tracked object - TOP and BOTTOM cameras are SEPARATE"""
+        # CRITICAL: Top and bottom cameras are COMPLETELY SEPARATE
+        # Objects from top camera NEVER match objects from bottom camera
         if tracked_obj.camera_label and tracked_obj.camera_label != person.camera_label:
+            logger.debug(f"Cannot match: tracked camera={tracked_obj.camera_label}, detection camera={person.camera_label}")
             return False
         
+        # Only match if same camera (top with top, bottom with bottom)
+        if tracked_obj.camera_label != person.camera_label:
+            return False
+        
+        # Check distance within same camera
         dx = person.center[0] - tracked_obj.center[0]
         dy = person.center[1] - tracked_obj.center[1]
         distance = (dx ** 2 + dy ** 2) ** 0.5
         
-        # Match if within 100 pixels
+        # Match if within 100 pixels (only for same camera)
         return distance < 100
     
     def get_tracked_objects(self) -> List[TrackedObject]:
