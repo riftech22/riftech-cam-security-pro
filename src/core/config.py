@@ -53,22 +53,23 @@ class DetectionConfig:
 @dataclass
 class PathsConfig:
     """File paths configuration - dynamically constructed"""
-    base_dir: Optional[str] = None  # Can be overridden by config.yaml
+    _base_dir_override: Optional[str] = None  # Can be overridden by config.yaml (internal field)
     _internal_base_dir: str = "data"  # Default if not specified
     
     def __post_init__(self):
         """Post-initialization to handle base_dir"""
-        if self.base_dir is None:
+        if self._base_dir_override is None:
             # Use dynamic data dir if base_dir not specified
             self._data_dir = get_data_dir()
         else:
             # Use specified base_dir from config.yaml
-            self._data_dir = Path(self.base_dir)
+            self._data_dir = Path(self._base_dir_override)
     
     @property
     def base_dir_path(self) -> Path:
         """Get base directory (compatibility)"""
         return self._data_dir
+    
     @property
     def base_dir(self) -> Path:
         """Get base directory - handles both config.yaml and dynamic paths"""
@@ -184,10 +185,10 @@ class Config:
                 # Load sections
                 self.camera = CameraConfig(**config_data.get('camera', {}))
                 self.detection = DetectionConfig(**config_data.get('detection', {}))
-                # Only pass base_dir to PathsConfig, other paths are properties
+                # Only pass base_dir to PathsConfig as _base_dir_override
                 paths_data = config_data.get('paths', {})
                 base_dir_value = paths_data.get('base_dir', None)
-                self.paths = PathsConfig(base_dir=base_dir_value)
+                self.paths = PathsConfig(_base_dir_override=base_dir_value)
                 self.database = DatabaseConfig(**config_data.get('database', {}))
                 self.logging = LoggingConfig(**config_data.get('logging', {}))
                 self.alerts = AlertsConfig(**config_data.get('alerts', {}))
