@@ -344,11 +344,12 @@ async def stream_video(
     bbox: bool = True,
     timestamp: bool = True,
     fps: int = 15,
-    height: int = 720
+    height: int = 720,
+    quality: int = 70
 ):
     """Stream live video with AI detection overlay (MJPEG) - IN-MEMORY STREAMING"""
     
-    logger.info("Streaming endpoint called - IN-MEMORY MODE")
+    logger.info(f"Streaming endpoint called - IN-MEMORY MODE (fps={fps}, height={height}, quality={quality})")
     
     async def generate():
         frame_count = 0
@@ -356,6 +357,7 @@ async def stream_video(
         fps_counter = 0
         last_valid_frame = None
         connection_attempts = 0
+        last_frame_time = 0
         
         while True:
             try:
@@ -366,11 +368,25 @@ async def stream_video(
                 if frame is None:
                     frame = frame_manager_v2.force_read_frame("camera_full_raw")
                 
+                # Additional fallback - try other buffers if full buffers not available
+                if frame is None:
+                    frame = frame_manager_v2.force_read_frame("camera_top_raw")
+                
                 # Use last valid frame if current read failed
-                if frame is None and last_valid_frame is not None:
-                    frame = last_valid_frame
-                elif frame is None:
-                    # Create connecting frame if never got a valid frame
+                if frame is not None:
+                    # Update last valid frame
+                    last_valid_frame = frame
+                    connection_attempts = 0
+                    last_frame_time = time.time()
+                elif last_valid_frame is not None:
+                    # Use last valid frame if available and not too old (max 2 seconds)
+                    if time.time() - last_frame_time < 2.0:
+                        frame = last_valid_frame
+                    else:
+                        # Last frame too old, show connecting
+                        connection_attempts += 1
+                else:
+                    # Never got a valid frame - create connecting frame
                     connection_attempts += 1
                     frame = np.zeros((height, int(height * 16 / 9), 3), np.uint8)
                     cv2.putText(frame, f"Connecting... ({connection_attempts})", (10, height // 2),
@@ -380,16 +396,12 @@ async def stream_video(
                     if connection_attempts > 10 * fps:
                         cv2.putText(frame, "No camera signal", (10, height // 2 + 50),
                                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
-                else:
-                    # Update last valid frame
-                    last_valid_frame = frame
-                    connection_attempts = 0
                 
                 # Resize and encode
                 if frame is not None and frame.size > 0:
                     width = int(height * frame.shape[1] / frame.shape[0])
                     frame = cv2.resize(frame, dsize=(width, height), interpolation=cv2.INTER_LINEAR)
-                    jpeg_bytes = encode_frame_to_jpeg(frame, quality=65)
+                    jpeg_bytes = encode_frame_to_jpeg(frame, quality=quality)
                     
                     yield (b'--frame\r\n'
                            b'Content-Type: image/jpeg\r\n\r\n' + jpeg_bytes + b'\r\n\r\n')
