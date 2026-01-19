@@ -53,12 +53,26 @@ class DetectionConfig:
 @dataclass
 class PathsConfig:
     """File paths configuration - dynamically constructed"""
-    _base_dir: str = "data"  # Base directory name
+    base_dir: Optional[str] = None  # Can be overridden by config.yaml
+    _internal_base_dir: str = "data"  # Default if not specified
+    
+    def __post_init__(self):
+        """Post-initialization to handle base_dir"""
+        if self.base_dir is None:
+            # Use dynamic data dir if base_dir not specified
+            self._data_dir = get_data_dir()
+        else:
+            # Use specified base_dir from config.yaml
+            self._data_dir = Path(self.base_dir)
     
     @property
+    def base_dir_path(self) -> Path:
+        """Get base directory (compatibility)"""
+        return self._data_dir
+    @property
     def base_dir(self) -> Path:
-        """Get base directory dynamically"""
-        return get_data_dir()
+        """Get base directory - handles both config.yaml and dynamic paths"""
+        return self._data_dir
     
     @property
     def recordings_dir(self) -> Path:
