@@ -14,6 +14,14 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Base directory for the application
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+
+def get_data_dir() -> Path:
+    """Get data directory dynamically"""
+    return BASE_DIR / "data"
+
 
 @dataclass
 class CameraConfig:
@@ -39,19 +47,47 @@ class DetectionConfig:
     motion_threshold: int = 15
     motion_min_area: int = 500
     skeleton_enabled: bool = True
-    fixed_images_dir: str = "data/fixed_images"
 
 
 @dataclass
 class PathsConfig:
-    """File paths configuration"""
-    base_dir: str = "data"
-    recordings_dir: str = "data/recordings"
-    alerts_dir: str = "data/alerts"
-    snapshots_dir: str = "data/snapshots"
-    logs_dir: str = "data/logs"
-    trusted_faces_dir: str = "data/trusted_faces"
-    fixed_images_dir: str = "data/fixed_images"
+    """File paths configuration - dynamically constructed"""
+    _base_dir: str = "data"  # Base directory name
+    
+    @property
+    def base_dir(self) -> Path:
+        """Get base directory dynamically"""
+        return get_data_dir()
+    
+    @property
+    def recordings_dir(self) -> Path:
+        """Get recordings directory dynamically"""
+        return self.base_dir / "recordings"
+    
+    @property
+    def alerts_dir(self) -> Path:
+        """Get alerts directory dynamically"""
+        return self.base_dir / "alerts"
+    
+    @property
+    def snapshots_dir(self) -> Path:
+        """Get snapshots directory dynamically"""
+        return self.base_dir / "snapshots"
+    
+    @property
+    def logs_dir(self) -> Path:
+        """Get logs directory dynamically"""
+        return self.base_dir / "logs"
+    
+    @property
+    def trusted_faces_dir(self) -> Path:
+        """Get trusted faces directory dynamically"""
+        return self.base_dir / "trusted_faces"
+    
+    @property
+    def fixed_images_dir(self) -> Path:
+        """Get fixed images directory dynamically"""
+        return self.base_dir / "fixed_images"
 
 
 @dataclass
