@@ -265,12 +265,12 @@ body {
 .video-container {
     position: relative;
     width: 100%;
-    min-height: 400px;
+    min-height: 720px;  /* Increased for V380 vertical stack (1280x720) */
     background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #0a0a0f 100%);
     border-radius: 8px;
     overflow: hidden;
     border: 2px solid var(--neon-cyan);
-    box-shadow: 
+    box-shadow:
         0 0 20px rgba(0, 255, 255, 0.3),
         inset 0 0 60px rgba(0, 255, 255, 0.1);
     display: flex;
