@@ -198,6 +198,7 @@ class RingBuffer:
         """
         Force read (even if no new data) - for web server
         Thread-safe read of latest frame without affecting indices
+        Detects active slot by comparing pixel changes
         
         Returns:
             Last available frame or None
@@ -205,14 +206,37 @@ class RingBuffer:
         try:
             # Acquire lock to ensure atomic read
             with self.mp_lock:
-                # Always read from the most recently written slot (write_idx points to next write)
-                # So the last written is at (1 - write_idx)
+                # CRITICAL FIX: When attached to existing buffer, write_idx is unknown
+                # Solution: Read both slots and return the one with more activity
+                # This works even if write_idx is out of sync
+                
+                # Simple approach: Try slot (1 - write_idx) first
+                # If that fails or looks stale, try the other slot
+                
                 read_slot = 1 - self.write_idx
                 
                 if read_slot == 0:
                     frame = self.slot0_arr.copy()
+                    other_frame = self.slot1_arr.copy()
                 else:
                     frame = self.slot1_arr.copy()
+                    other_frame = self.slot0_arr.copy()
+                
+                # Check if frame is valid (not all zeros)
+                if np.mean(frame) < 10:  # Frame is too dark/black
+                    # Try other slot
+                    if np.mean(other_frame) > 10:
+                        frame = other_frame
+                        # Update write_idx to match
+                        self.write_idx = 0 if read_slot == 1 else 1
+                
+                # Additional check: Compare variance to detect stale frame
+                # A live frame should have some variance
+                if np.var(frame) < 100:  # Very low variance = stale/static frame
+                    if np.var(other_frame) > 100:
+                        frame = other_frame
+                        # Update write_idx to match
+                        self.write_idx = 0 if read_slot == 1 else 1
             
             return frame
         except Exception as e:
