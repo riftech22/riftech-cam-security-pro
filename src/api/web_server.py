@@ -410,8 +410,23 @@ async def stream_video(
                 
                 # Resize and encode
                 if frame is not None and frame.size > 0:
-                    width = int(height * frame.shape[1] / frame.shape[0])
-                    frame = cv2.resize(frame, dsize=(width, height), interpolation=cv2.INTER_LINEAR)
+                    # Calculate width maintaining aspect ratio
+                    # Use frame's actual aspect ratio, not hardcoded values
+                    frame_height, frame_width = frame.shape[:2]
+                    aspect_ratio = frame_width / frame_height
+                    
+                    # Calculate new dimensions maintaining aspect ratio
+                    new_height = height
+                    new_width = int(new_height * aspect_ratio)
+                    
+                    # Only resize if dimensions are different
+                    if new_width != frame_width or new_height != frame_height:
+                        frame = cv2.resize(
+                            frame, 
+                            dsize=(new_width, new_height), 
+                            interpolation=cv2.INTER_LINEAR
+                        )
+                    
                     jpeg_bytes = encode_frame_to_jpeg(frame, quality=quality)
                     
                     yield (b'--frame\r\n'
