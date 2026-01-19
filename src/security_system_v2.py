@@ -851,7 +851,15 @@ class EnhancedSecuritySystem:
         
         # Read frame from V2 ring buffer (use force_read for web server style)
         if self.is_v380_split:
-            frame = frame_manager_v2.force_read_frame("camera_full_raw")
+            # For V380 split camera, combine top and bottom frames VERTICALLY for clean web display
+            top_frame = frame_manager_v2.force_read_frame("camera_top_raw")
+            bottom_frame = frame_manager_v2.force_read_frame("camera_bottom_raw")
+            
+            if top_frame is None or bottom_frame is None:
+                return None
+            
+            # Stack vertically (top on top, bottom on bottom) for clean display
+            frame = np.vstack((top_frame, bottom_frame))
         else:
             frame = frame_manager_v2.force_read_frame("camera_raw")
         
