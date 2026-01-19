@@ -18,7 +18,7 @@ try:
     from src.core.frame_manager_v2 import frame_manager_v2
 except ImportError as e:
     print(f"Error importing modules: {e}")
-    print("Please run this from the project directory with venv activated")
+    print("Please run this from to project directory with venv activated")
     sys.exit(1)
 
 
@@ -150,7 +150,7 @@ def main():
             print("   journalctl -u riftech-security-v2 -f | grep -E '(capture|worker|camera)'")
             
             print("\n3. Check system resources:")
-            print("   top -p $(pgrep -f 'riftech-security-v2' -d,)"
+            print('   top -p $(pgrep -f "riftech-security-v2" -d,)')
             
             print("\n4. Restart security system:")
             print("   sudo systemctl restart riftech-security-v2")
