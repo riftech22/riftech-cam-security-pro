@@ -252,12 +252,22 @@ class FrameManagerV2:
         
         Args:
             name: Buffer name
-            shape: Frame shape (height, width, channels)
+            shape: Frame shape (height, width, channels) or (width, height, channels)
             dtype: Data type
             
         Returns:
             True if successful
         """
+        # Auto-detect and correct shape if needed
+        # OpenCV/FFmpeg uses (height, width, channels) but sometimes passed as (width, height, channels)
+        if len(shape) == 3:
+            # Assume it's (height, width, channels) by default
+            h, w, c = shape
+            # If width > height and they're very different, swap them
+            if w > h and abs(w - h) > 100:  # Only swap if clearly wrong
+                logger.debug(f"Detected shape mismatch, swapping: ({h}, {w}, {c}) -> ({w}, {h}, {c})")
+                shape = (w, h, c)
+        
         with self._lock:
             if name in self.ring_buffers:
                 logger.warning(f"Ring buffer {name} already exists")
