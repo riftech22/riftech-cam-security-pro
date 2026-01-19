@@ -81,6 +81,7 @@ class AlertsConfig:
     telegram_enabled: bool = False
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+    breach_mode: str = "normal"  # normal, armed, stealth
 
 
 @dataclass
