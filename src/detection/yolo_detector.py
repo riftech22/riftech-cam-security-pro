@@ -15,7 +15,7 @@ from ..core.logger import logger
 
 
 class YOLODetector:
-    """YOLOv8 detector for person detection"""
+    """YOLOv8 detector for all object detection (COCO 80 classes)"""
     
     def __init__(self, model_path: str = "yolov8n.pt", confidence: float = 0.20):
         """
@@ -30,6 +30,19 @@ class YOLODetector:
         self.model = None
         self._initialized = False
         self.enabled = True
+        
+        # COCO class names (80 classes)
+        self.COCO_CLASSES = [
+            "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light",
+            "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
+            "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
+            "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
+            "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
+            "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
+            "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse", "remote", "keyboard",
+            "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors",
+            "teddy bear", "hair drier", "toothbrush"
+        ]
     
     def initialize(self):
         """Load YOLO model"""
@@ -44,13 +57,13 @@ class YOLODetector:
     
     def detect(self, frame: np.ndarray) -> List[PersonDetection]:
         """
-        Perform person detection on frame
+        Perform object detection on frame (all COCO classes)
         
         Args:
             frame: Input BGR frame
             
         Returns:
-            List of person detections
+            List of object detections
         """
         if not self.enabled or not self._initialized:
             return []
@@ -63,24 +76,28 @@ class YOLODetector:
             
             detections = []
             
-            # Process results
+            # Process results - DETECT ALL CLASSES
             for box in results.boxes:
                 class_id = int(box.cls[0])
                 
-                # Only detect persons (class 0 in COCO)
-                if class_id == 0:
-                    confidence = float(box.conf[0])
-                    x1, y1, x2, y2 = box.xyxy[0].tolist()
-                    
-                    # Create person detection
-                    detection = PersonDetection(
-                        class_name="person",
-                        confidence=confidence,
-                        bbox=(int(x1), int(y1), int(x2), int(y2)),
-                        class_id=class_id
-                    )
-                    
-                    detections.append(detection)
+                # Get class name
+                if class_id < len(self.COCO_CLASSES):
+                    class_name = self.COCO_CLASSES[class_id]
+                else:
+                    class_name = f"unknown_{class_id}"
+                
+                confidence = float(box.conf[0])
+                x1, y1, x2, y2 = box.xyxy[0].tolist()
+                
+                # Create detection (use base Detection class for all objects)
+                detection = PersonDetection(
+                    class_name=class_name,
+                    confidence=confidence,
+                    bbox=(int(x1), int(y1), int(x2), int(y2)),
+                    class_id=class_id
+                )
+                
+                detections.append(detection)
             
             return detections
             

@@ -284,9 +284,10 @@ class DetectionWorker:
                         # Note: PersonDetection center is a property, set through bbox
                         det.camera_label = "bottom"
                     
+                    # Combine all detections (not just persons)
                     result.persons = top_detections + bottom_detections
                 else:
-                    # Regular camera
+                    # Regular camera - process all detections
                     detections = self._process_frame(frame, "")
                     result.persons = detections
                 
@@ -294,7 +295,9 @@ class DetectionWorker:
                 if self.tracking_queue:
                     self.tracking_queue.put(result)
                 
-                logger.info(f"Processing frame #{frames_processed} from camera: {camera_name} - People detected: {len(result.persons)}")
+                # Log all detections (not just people)
+                object_classes = [det.class_name for det in result.persons]
+                logger.info(f"Processing frame #{frames_processed} from camera: {camera_name} - Objects detected: {len(result.persons)} ({', '.join(set(object_classes))})")
                 
                 # Update stats
                 elapsed = (time.time() - start_time) * 1000
@@ -443,15 +446,15 @@ class TrackingWorker:
                     for obj_id in to_remove:
                         del self.tracked_objects[obj_id]
                     
-                    # Write metadata to shared buffers
+                    # Write metadata to shared buffers (include all objects)
                     metadata = [
                         {
                             'id': obj.id,
                             'bbox': obj.bbox,
                             'confidence': obj.confidence,
-                            'class_name': obj.class_name,
-                            'is_trusted': obj.is_trusted,
-                            'face_name': obj.face_name,
+                            'class_name': obj.class_name,  # Include class name for all objects
+                            'is_trusted': obj.is_trusted if obj.class_name == "person" else False,
+                            'face_name': obj.face_name if obj.class_name == "person" else None,
                             'camera_label': obj.camera_label,
                             'last_seen': obj.last_seen
                         }
@@ -553,15 +556,17 @@ class EnhancedSecuritySystem:
         
         # Statistics
         self.stats = {
-            "persons_detected": 0,
+            "objects_detected": 0,  # Total objects detected (all classes)
+            "persons_detected": 0,  # Persons only
             "alerts_triggered": 0,
             "breaches_detected": 0,
             "trusted_faces_seen": 0,
             "uptime": 0,
-            "top_camera_persons": 0,
-            "bottom_camera_persons": 0,
+            "top_camera_objects": 0,
+            "bottom_camera_objects": 0,
             "fps": 0.0,
-            "motion_ratio": 0.0
+            "motion_ratio": 0.0,
+            "detection_classes": {}  # Count by class (e.g., {"person": 2, "car": 1})
         }
         
         # Callbacks
@@ -750,16 +755,24 @@ class EnhancedSecuritySystem:
                 if self.stats["uptime"] > 0:
                     self.stats["fps"] = self.capture_worker.frame_count / self.stats["uptime"]
                 
-                # Update person count
+                # Update object count (all classes)
                 tracked_objects = self.tracking_worker.get_tracked_objects()
-                self.stats["persons_detected"] = len(tracked_objects)
+                self.stats["objects_detected"] = len(tracked_objects)
+                self.stats["persons_detected"] = sum(1 for obj in tracked_objects if obj.class_name == "person")
                 
                 # Update camera-specific stats
                 if self.is_v380_split:
                     top_count = sum(1 for obj in tracked_objects if obj.camera_label == "top")
                     bottom_count = sum(1 for obj in tracked_objects if obj.camera_label == "bottom")
-                    self.stats["top_camera_persons"] = top_count
-                    self.stats["bottom_camera_persons"] = bottom_count
+                    self.stats["top_camera_objects"] = top_count
+                    self.stats["bottom_camera_objects"] = bottom_count
+                
+                # Update detection class breakdown
+                class_counts = {}
+                for obj in tracked_objects:
+                    class_name = obj.class_name
+                    class_counts[class_name] = class_counts.get(class_name, 0) + 1
+                self.stats["detection_classes"] = class_counts
                 
                 # Save stats to file
                 stats_path = DATA_DIR / "stats.json"
@@ -916,14 +929,14 @@ class EnhancedSecuritySystem:
             cv2.putText(frame, timestamp, (10, 30),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
         
-        # Draw system status
-        status_text = f"Mode: {self.system_mode.upper()} | FPS: {self.stats['fps']:.1f} | People: {self.stats['persons_detected']}"
+        # Draw system status (show total objects and persons)
+        status_text = f"Mode: {self.system_mode.upper()} | FPS: {self.stats['fps']:.1f} | Objects: {self.stats['objects_detected']} | People: {self.stats['persons_detected']}"
         cv2.putText(frame, status_text, (10, 70),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
         
         return frame
     
-    def _handle_breach(self, breached_zones: List[int], detections: List, camera: str):
+    def _handle_breach(self, breached_zones: List[int], detections: List[PersonDetection], camera: str):
         """Handle zone breach"""
         current_time = time.time()
         
@@ -957,7 +970,10 @@ class EnhancedSecuritySystem:
             self.on_breach(breached_zones, detections, str(alert_path))
     
     def _handle_trusted_face(self, detection: PersonDetection, camera: str):
-        """Handle trusted face detection"""
+        """Handle trusted face detection (only for persons)"""
+        if detection.class_name != "person":
+            return
+            
         self.stats["trusted_faces_seen"] += 1
         
         if detection.face_name:
