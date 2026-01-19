@@ -880,20 +880,18 @@ class EnhancedSecuritySystem:
         
         # Read frame from V2 ring buffer (use force_read for web server style)
         if self.is_v380_split:
-            # For V380 split camera, combine top and bottom frames VERTICALLY for clean web display
+            # For V380 split camera, READ FULL FRAME directly (already combined)
+            # Don't combine top/bottom separately to avoid bounding box mismatch
             try:
-                top_frame = frame_manager_v2.force_read_frame("camera_top_raw")
-                bottom_frame = frame_manager_v2.force_read_frame("camera_bottom_raw")
+                frame = frame_manager_v2.force_read_frame("camera_full_raw")
                 
-                if top_frame is None or bottom_frame is None:
-                    logger.debug(f"Frame not available: top={top_frame is not None}, bottom={bottom_frame is not None}")
+                if frame is None:
+                    logger.debug(f"Full frame not available for V380 split camera")
                     return None
                 
-                # Stack vertically (top on top, bottom on bottom) for clean display
-                frame = np.vstack((top_frame, bottom_frame))
-                logger.debug(f"V380 frame stacked successfully: {frame.shape}")
+                logger.debug(f"V380 full frame read successfully: {frame.shape}")
             except Exception as e:
-                logger.error(f"Error stacking V380 frames: {e}")
+                logger.error(f"Error reading V380 full frame: {e}")
                 return None
         else:
             frame = frame_manager_v2.force_read_frame("camera_raw")
