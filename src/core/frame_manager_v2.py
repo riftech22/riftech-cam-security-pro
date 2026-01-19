@@ -368,6 +368,7 @@ class FrameManagerV2:
     def force_read_frame(self, name: str) -> Optional[np.ndarray]:
         """
         Force read frame (for web server - always return last frame)
+        Auto-attaches to existing ring buffer if not found
         
         Args:
             name: Buffer name
@@ -376,10 +377,86 @@ class FrameManagerV2:
             Last available frame or None
         """
         with self._lock:
+            # If buffer not in our dictionary, try to attach to existing one
             if name not in self.ring_buffers:
-                return None
+                if self._attach_existing_buffer(name):
+                    logger.debug(f"Auto-attached to existing ring buffer: {name}")
+                else:
+                    # Buffer doesn't exist anywhere
+                    return None
             
             return self.ring_buffers[name].force_read()
+    
+    def _attach_existing_buffer(self, name: str) -> bool:
+        """
+        Attach to existing ring buffer (created by another process)
+        
+        Args:
+            name: Buffer name
+            
+        Returns:
+            True if successful
+        """
+        try:
+            from multiprocessing import Lock
+            mp_lock = Lock()
+            
+            # Try to attach to both slots
+            slot0 = SharedMemory(name=f"{name}_0", create=False)
+            slot1 = SharedMemory(name=f"{name}_1", create=False)
+            
+            # Infer shape from slot0 buffer size
+            buffer_size = slot0.size
+            
+            # Try common shapes for camera frames
+            # (height, width, channels) with uint8
+            possible_shapes = [
+                (480, 640, 3),
+                (720, 1280, 3),
+                (1080, 1920, 3),
+                (360, 640, 3),
+                (720, 960, 3),
+            ]
+            
+            for shape in possible_shapes:
+                expected_size = np.prod(shape) * np.dtype(np.uint8).itemsize
+                if buffer_size == expected_size:
+                    logger.debug(f"Inferred shape {shape} for buffer {name}")
+                    break
+            else:
+                # Fallback to common shape if not found
+                shape = (480, 640, 3)
+                logger.warning(f"Could not infer shape for buffer {name}, using default {shape}")
+            
+            # Create numpy arrays from buffers
+            slot0_arr = np.ndarray(shape, dtype=np.uint8, buffer=slot0.buf)
+            slot1_arr = np.ndarray(shape, dtype=np.uint8, buffer=slot1.buf)
+            
+            from multiprocessing import Event
+            data_ready = Event()
+            
+            # Create RingBuffer object and attach
+            buffer = RingBuffer(name, shape, np.uint8)
+            buffer.slot0 = slot0
+            buffer.slot1 = slot1
+            buffer.slot0_arr = slot0_arr
+            buffer.slot1_arr = slot1_arr
+            buffer.data_ready = data_ready
+            buffer.mp_lock = mp_lock
+            buffer.write_idx = 0  # Will be updated by reading
+            buffer.read_idx = 0
+            
+            self.ring_buffers[name] = buffer
+            logger.info(f"Successfully attached to existing ring buffer: {name}")
+            return True
+            
+        except FileNotFoundError:
+            # Ring buffer doesn't exist
+            logger.debug(f"Ring buffer {name} does not exist")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to attach to ring buffer {name}: {e}")
+            return False
     
     def close_all(self):
         """Close all ring buffers"""
