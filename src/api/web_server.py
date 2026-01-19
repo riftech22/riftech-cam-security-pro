@@ -97,8 +97,11 @@ class ConnectionManager:
         """Broadcast loop for metadata and stats"""
         while self.active_connections:
             try:
-                # Broadcast metadata (tracked objects)
-                metadata = metadata_manager.read_objects("metadata")
+                # Broadcast metadata (try multiple buffers for V380 split)
+                metadata = metadata_manager.read_objects("metadata_full")
+                if not metadata:
+                    metadata = metadata_manager.read_objects("metadata")
+                
                 if metadata:
                     await self.broadcast({
                         "type": "metadata",
@@ -362,13 +365,21 @@ async def stream_video(
         while True:
             try:
                 # Try to read from overlay buffer (with AI detection overlays)
+                # First try full overlay (V380 split camera)
                 frame = frame_manager_v2.force_read_frame("camera_full_overlay")
                 
-                # Fallback to raw buffer if overlay not available
+                # Fallback to single overlay (regular camera)
+                if frame is None:
+                    frame = frame_manager_v2.force_read_frame("camera_overlay")
+                
+                # Fallback to raw buffers if overlays not available
                 if frame is None:
                     frame = frame_manager_v2.force_read_frame("camera_full_raw")
                 
-                # Additional fallback - try other buffers if full buffers not available
+                if frame is None:
+                    frame = frame_manager_v2.force_read_frame("camera_raw")
+                
+                # Additional fallback - try top buffer for split camera
                 if frame is None:
                     frame = frame_manager_v2.force_read_frame("camera_top_raw")
                 
@@ -451,17 +462,19 @@ async def get_stats():
     except Exception as e:
         logger.error(f"Error getting stats from security system: {e}")
     
-    # Return default stats if all fails
+    # Return default stats if all fails (use new keys)
     return JSONResponse(content={
         "fps": 0.0,
+        "objects_detected": 0,
         "persons_detected": 0,
         "alerts_triggered": 0,
         "breaches_detected": 0,
         "trusted_faces_seen": 0,
         "uptime": 0,
-        "top_camera_persons": 0,
-        "bottom_camera_persons": 0,
-        "motion_ratio": 0.0
+        "top_camera_objects": 0,
+        "bottom_camera_objects": 0,
+        "motion_ratio": 0.0,
+        "detection_classes": {}
     })
 
 
