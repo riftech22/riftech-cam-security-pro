@@ -424,9 +424,29 @@ class FrameManagerV2:
                     logger.debug(f"Inferred shape {shape} for buffer {name}")
                     break
             else:
-                # Fallback to common shape if not found
-                shape = (480, 640, 3)
-                logger.warning(f"Could not infer shape for buffer {name}, using default {shape}")
+                # Try to infer from size directly
+                # size = height * width * 3
+                # So: height * width = size / 3
+                pixel_count = buffer_size // 3
+                
+                # Try common aspect ratios
+                for ratio in [4/3, 16/9, 3/2]:
+                    width = int((pixel_count * ratio) ** 0.5)
+                    height = pixel_count // width
+                    
+                    # Round to reasonable sizes
+                    width = (width // 8) * 8  # Multiple of 8
+                    height = (height // 8) * 8
+                    
+                    expected_size = height * width * 3
+                    if buffer_size == expected_size:
+                        shape = (height, width, 3)
+                        logger.debug(f"Inferred shape {shape} from buffer size {buffer_size}")
+                        break
+                else:
+                    # Fallback
+                    shape = (480, 640, 3)
+                    logger.warning(f"Could not infer shape for buffer {name} (size={buffer_size}), using default {shape}")
             
             # Create numpy arrays from buffers
             slot0_arr = np.ndarray(shape, dtype=np.uint8, buffer=slot0.buf)
@@ -443,11 +463,18 @@ class FrameManagerV2:
             buffer.slot1_arr = slot1_arr
             buffer.data_ready = data_ready
             buffer.mp_lock = mp_lock
-            buffer.write_idx = 0  # Will be updated by reading
+            
+            # CRITICAL: Don't assume write_idx!
+            # The security system constantly updates write_idx (0, 1, 0, 1...)
+            # If we assume write_idx=0, we'll read from wrong slot
+            # Solution: Check both slots and detect which is more recent
+            # by comparing pixel changes or simply start with write_idx=0
+            # and let force_read handle it correctly
+            buffer.write_idx = 0  # Initial guess, will be corrected by reads
             buffer.read_idx = 0
             
             self.ring_buffers[name] = buffer
-            logger.info(f"Successfully attached to existing ring buffer: {name}")
+            logger.info(f"Successfully attached to existing ring buffer: {name} (shape={shape})")
             return True
             
         except FileNotFoundError:
