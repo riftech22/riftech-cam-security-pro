@@ -779,6 +779,7 @@ class EnhancedSecuritySystem:
         # Write overlays every frame (no conditions) to prevent flickering
         min_write_interval = 0.03  # Maximum 33 FPS for overlays - Ultra-low latency
         last_write_time = 0.0
+        frame_read_failures = 0  # Track consecutive failures
         
         while self.running:
             try:
@@ -802,6 +803,14 @@ class EnhancedSecuritySystem:
                             frame_manager_v2.write_frame("camera_overlay", frame_with_overlays)
                         
                         last_write_time = current_time
+                        frame_read_failures = 0  # Reset failure counter on success
+                    else:
+                        # Frame not available yet - this is normal on startup
+                        frame_read_failures += 1
+                        if frame_read_failures == 1:  # Log only first failure to avoid spam
+                            logger.debug("Overlay writer waiting for capture worker to write first frame...")
+                        elif frame_read_failures >= 100:  # Log warning after 100 consecutive failures
+                            logger.warning(f"Overlay writer unable to read frame after {frame_read_failures} attempts. Check if capture worker is writing frames.")
                 
                 time.sleep(0.02)  # Check every 20ms (50 Hz)
                 
@@ -847,6 +856,7 @@ class EnhancedSecuritySystem:
             frame = frame_manager_v2.force_read_frame("camera_raw")
         
         if frame is None:
+            # Frame not available - this is normal on startup or if capture is slow
             return None
         
         # Get tracked objects
