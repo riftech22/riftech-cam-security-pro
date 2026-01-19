@@ -51,23 +51,45 @@ class RingBuffer:
         self._create_slots()
     
     def _create_slots(self):
-        """Create 2 shared memory slots"""
+        """Create 2 shared memory slots (or attach to existing)"""
         try:
             from multiprocessing import Lock
             self.mp_lock = Lock()
             
-            # Slot 0
-            self.slot0 = SharedMemory(name=f"{self.name}_0", create=True, size=self.size)
+            # Slot 0 - try to create, if exists then attach
+            try:
+                self.slot0 = SharedMemory(name=f"{self.name}_0", create=True, size=self.size)
+                logger.debug(f"Created new shared memory slot for {self.name}_0")
+            except FileExistsError:
+                # Already exists, try to attach
+                try:
+                    self.slot0 = SharedMemory(name=f"{self.name}_0", create=False)
+                    logger.debug(f"Attached to existing shared memory {self.name}_0")
+                except Exception as attach_err:
+                    logger.error(f"Failed to attach to {self.name}_0: {attach_err}")
+                    return False
+            
             self.slot0_arr = np.ndarray(self.shape, dtype=self.dtype, buffer=self.slot0.buf)
             
-            # Slot 1
-            self.slot1 = SharedMemory(name=f"{self.name}_1", create=True, size=self.size)
+            # Slot 1 - try to create, if exists then attach
+            try:
+                self.slot1 = SharedMemory(name=f"{self.name}_1", create=True, size=self.size)
+                logger.debug(f"Created new shared memory slot for {self.name}_1")
+            except FileExistsError:
+                # Already exists, try to attach
+                try:
+                    self.slot1 = SharedMemory(name=f"{self.name}_1", create=False)
+                    logger.debug(f"Attached to existing shared memory {self.name}_1")
+                except Exception as attach_err:
+                    logger.error(f"Failed to attach to {self.name}_1: {attach_err}")
+                    return False
+            
             self.slot1_arr = np.ndarray(self.shape, dtype=self.dtype, buffer=self.slot1.buf)
             
             from multiprocessing import Event
             self.data_ready = Event()
             
-            logger.debug(f"Created ring buffer {self.name} with 2 slots")
+            logger.info(f"Ring buffer {self.name} ready with 2 slots")
             return True
         except Exception as e:
             logger.error(f"Failed to create ring buffer {self.name}: {e}")
