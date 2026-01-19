@@ -443,7 +443,7 @@ class TelegramNotifier:
             return
         
         if not self.security_system:
-            await update.message.reply_text("❌ Security system not initialized")
+            await update.message.reply_text("❌ Security system not initialized", reply_markup=self.main_menu)
             return
         
         stats = self.security_system.get_stats()
@@ -514,8 +514,14 @@ class TelegramNotifier:
         if str(user_id) != self.chat_id:
             return
         
-        if not self.security_system or self.security_system.current_frame is None:
-            await update.message.reply_text("❌ No frame available")
+        # Get current frame using the new method
+        if not self.security_system:
+            await update.message.reply_text("❌ Security system not initialized", reply_markup=self.main_menu)
+            return
+        
+        current_frame = self.security_system.get_current_frame()
+        if current_frame is None:
+            await update.message.reply_text("❌ No frame available", reply_markup=self.main_menu)
             return
         
         try:
@@ -524,7 +530,7 @@ class TelegramNotifier:
             screenshot_path = Path(config.paths.snapshots_dir) / f"screenshot_{timestamp}.jpg"
             
             cv2 = __import__('cv2')
-            cv2.imwrite(str(screenshot_path), self.security_system.current_frame)
+            cv2.imwrite(str(screenshot_path), current_frame)
             
             # Send photo
             await update.message.reply_photo(

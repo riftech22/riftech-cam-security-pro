@@ -116,6 +116,7 @@ class RingBuffer:
             return False
         
         try:
+            # Acquire lock for both memory and event
             with self.mp_lock:
                 # Write to slot that's NOT being read (ping-pong)
                 if self.write_idx == 0:
@@ -126,7 +127,7 @@ class RingBuffer:
                 # Toggle write index
                 self.write_idx = 1 - self.write_idx
                 
-                # Signal that data is ready
+                # Signal that data is ready (inside lock to prevent race condition)
                 self.data_ready.set()
             
             return True
@@ -143,13 +144,15 @@ class RingBuffer:
         """
         try:
             # Wait for data (timeout 100ms)
+            # Event wait is outside lock to allow other writers
             if not self.data_ready.wait(timeout=0.1):
                 return None
             
+            # Acquire lock for reading
             with self.mp_lock:
-                # Only read if there's new data (read_idx != write_idx)
+                # Double-check after acquiring lock (prevents race condition)
                 if self.read_idx == self.write_idx:
-                    # No new data
+                    # No new data - might have been consumed by another reader
                     return None
                 
                 # Read from the slot that was just written
@@ -161,7 +164,7 @@ class RingBuffer:
                 # Sync read index with write index
                 self.read_idx = self.write_idx
                 
-                # Clear the event
+                # Clear the event (inside lock to prevent race condition)
                 self.data_ready.clear()
             
             return frame
@@ -172,14 +175,19 @@ class RingBuffer:
     def force_read(self) -> Optional[np.ndarray]:
         """
         Force read (even if no new data) - for web server
+        Thread-safe read of latest frame without affecting indices
         
         Returns:
             Last available frame or None
         """
         try:
+            # Acquire lock to ensure atomic read
             with self.mp_lock:
-                # Always read from the most recently written slot
-                if self.write_idx == 0:
+                # Always read from the most recently written slot (write_idx points to next write)
+                # So the last written is at (1 - write_idx)
+                read_slot = 1 - self.write_idx
+                
+                if read_slot == 0:
                     frame = self.slot0_arr.copy()
                 else:
                     frame = self.slot1_arr.copy()
@@ -191,20 +199,34 @@ class RingBuffer:
     
     def close(self):
         """Close ring buffer"""
-        if self.slot0:
-            self.slot0.close()
-        if self.slot1:
-            self.slot1.close()
-        logger.debug(f"Closed ring buffer {self.name}")
+        try:
+            if self.slot0:
+                self.slot0.close()
+            if self.slot1:
+                self.slot1.close()
+            # Clear the event to prevent any waiters
+            if self.data_ready:
+                self.data_ready.clear()
+            logger.debug(f"Closed ring buffer {self.name}")
+        except Exception as e:
+            logger.error(f"Error closing ring buffer {self.name}: {e}")
     
     def unlink(self):
         """Unlink ring buffer (free resources)"""
         try:
+            # First close all resources
+            self.close()
+            
+            # Then unlink shared memory (this actually frees the memory)
             if self.slot0:
                 self.slot0.unlink()
             if self.slot1:
                 self.slot1.unlink()
+            
             logger.debug(f"Unlinked ring buffer {self.name}")
+        except FileNotFoundError:
+            # Shared memory already unlinked (not an error)
+            logger.debug(f"Ring buffer {self.name} already unlinked")
         except Exception as e:
             logger.error(f"Error unlinking ring buffer {self.name}: {e}")
 
@@ -335,12 +357,22 @@ class FrameManagerV2:
             logger.info(f"Closed all {len(self.ring_buffers)} ring buffers")
     
     def cleanup_all(self):
-        """Close and unlink all ring buffers"""
+        """Close and unlink all ring buffers with error handling"""
         with self._lock:
+            errors = 0
             for name, buffer in self.ring_buffers.items():
-                buffer.unlink()
+                try:
+                    buffer.unlink()
+                except Exception as e:
+                    logger.error(f"Error cleaning up ring buffer {name}: {e}")
+                    errors += 1
+            
             self.ring_buffers.clear()
-            logger.info("Cleaned up all ring buffers")
+            
+            if errors > 0:
+                logger.warning(f"Cleaned up {len(self.ring_buffers) - errors}/{len(self.ring_buffers)} ring buffers with {errors} errors")
+            else:
+                logger.info(f"Cleaned up all {len(self.ring_buffers)} ring buffers")
 
 
 # Global instance

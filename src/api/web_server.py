@@ -39,6 +39,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from ..core.config import config
 from ..core.logger import logger
 from ..core.frame_manager_v2 import frame_manager_v2
+from ..core.metadata_manager import metadata_manager
 
 # Ensure data directory exists
 Path("data").mkdir(parents=True, exist_ok=True)
@@ -54,15 +55,21 @@ ADMIN_PASSWORD_HASH = bcrypt.hashpw(b"admin", bcrypt.gensalt()).decode('utf-8')
 
 # WebSocket manager
 class ConnectionManager:
-    """Manages WebSocket connections"""
+    """Manages WebSocket connections and broadcasts updates"""
     
     def __init__(self):
         self.active_connections: List[WebSocket] = []
+        self.broadcasting = False
     
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
         logger.info(f"WebSocket connected. Total: {len(self.active_connections)}")
+        
+        # Start broadcaster if not running
+        if not self.broadcasting:
+            self.broadcasting = True
+            asyncio.create_task(self._broadcast_loop())
     
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
@@ -85,6 +92,55 @@ class ConnectionManager:
             await websocket.send_text(json.dumps(message))
         except:
             self.disconnect(websocket)
+    
+    async def _broadcast_loop(self):
+        """Broadcast loop for metadata and stats"""
+        while self.active_connections:
+            try:
+                # Broadcast metadata (tracked objects)
+                metadata = metadata_manager.read_objects("metadata")
+                if metadata:
+                    await self.broadcast({
+                        "type": "metadata",
+                        "data": metadata
+                    })
+                
+                # Broadcast stats
+                stats_data = self._get_system_stats()
+                if stats_data:
+                    await self.broadcast({
+                        "type": "stats",
+                        "data": stats_data
+                    })
+                
+                # Wait before next broadcast
+                await asyncio.sleep(1.0)
+                
+            except Exception as e:
+                logger.error(f"Error in broadcast loop: {e}")
+                await asyncio.sleep(1.0)
+        
+        self.broadcasting = False
+    
+    def _get_system_stats(self) -> dict:
+        """Get system stats"""
+        try:
+            # Try to read from shared stats.json
+            if STATS_JSON_PATH.exists():
+                stats_data = json.loads(STATS_JSON_PATH.read_text())
+                return stats_data
+        except Exception as e:
+            logger.error(f"Error reading stats.json: {e}")
+        
+        # Fallback to security system
+        try:
+            from ..security_system_v2 import enhanced_security_system
+            if enhanced_security_system.running:
+                return enhanced_security_system.get_stats()
+        except:
+            pass
+        
+        return None
 
 
 manager = ConnectionManager()
@@ -299,40 +355,53 @@ async def stream_video(
         last_fps_check = time.time()
         fps_counter = 0
         last_valid_frame = None
+        connection_attempts = 0
         
         while True:
             try:
-                # Read directly from shared memory (IN-MEMORY - no disk I/O!)
+                # Try to read from overlay buffer (with AI detection overlays)
                 frame = frame_manager_v2.force_read_frame("camera_full_overlay")
+                
+                # Fallback to raw buffer if overlay not available
+                if frame is None:
+                    frame = frame_manager_v2.force_read_frame("camera_full_raw")
                 
                 # Use last valid frame if current read failed
                 if frame is None and last_valid_frame is not None:
                     frame = last_valid_frame
                 elif frame is None:
-                    # Create error frame (only if never got a valid frame)
+                    # Create connecting frame if never got a valid frame
+                    connection_attempts += 1
                     frame = np.zeros((height, int(height * 16 / 9), 3), np.uint8)
-                    cv2.putText(frame, "Connecting...", (10, height // 2),
+                    cv2.putText(frame, f"Connecting... ({connection_attempts})", (10, height // 2),
                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+                    
+                    # Only show connecting for first 10 seconds
+                    if connection_attempts > 10 * fps:
+                        cv2.putText(frame, "No camera signal", (10, height // 2 + 50),
+                                   cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
                 else:
                     # Update last valid frame
                     last_valid_frame = frame
+                    connection_attempts = 0
                 
                 # Resize and encode
-                width = int(height * frame.shape[1] / frame.shape[0])
-                frame = cv2.resize(frame, dsize=(width, height), interpolation=cv2.INTER_LINEAR)
-                jpeg_bytes = encode_frame_to_jpeg(frame, quality=65)
-                
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + jpeg_bytes + b'\r\n\r\n')
-                
-                frame_count += 1
-                fps_counter += 1
-                current_time = time.time()
-                if current_time - last_fps_check >= 1.0:
-                    actual_fps = fps_counter / (current_time - last_fps_check)
-                    logger.debug(f"Stream FPS: {actual_fps:.1f}")
-                    fps_counter = 0
-                    last_fps_check = current_time
+                if frame is not None and frame.size > 0:
+                    width = int(height * frame.shape[1] / frame.shape[0])
+                    frame = cv2.resize(frame, dsize=(width, height), interpolation=cv2.INTER_LINEAR)
+                    jpeg_bytes = encode_frame_to_jpeg(frame, quality=65)
+                    
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + jpeg_bytes + b'\r\n\r\n')
+                    
+                    frame_count += 1
+                    fps_counter += 1
+                    current_time = time.time()
+                    if current_time - last_fps_check >= 1.0:
+                        actual_fps = fps_counter / (current_time - last_fps_check)
+                        logger.debug(f"Stream FPS: {actual_fps:.1f}")
+                        fps_counter = 0
+                        last_fps_check = current_time
                 
                 await asyncio.sleep(1.0 / fps)
                 
@@ -351,6 +420,7 @@ async def stream_video(
 @app.get("/api/stats")
 async def get_stats():
     """Get system statistics"""
+    stats_data = None
     
     # Try to read from shared stats.json (written by security system)
     if STATS_JSON_PATH.exists():
@@ -360,21 +430,26 @@ async def get_stats():
         except Exception as e:
             logger.error(f"Error reading stats: {e}")
     
-    # Fallback to enhanced_security_system
+    # Fallback to security system
     try:
         from ..security_system_v2 import enhanced_security_system
-        if enhanced_security_system.running:
-            stats = enhanced_security_system.get_stats()
-            return JSONResponse(content=stats)
-    except:
-        pass
+        if hasattr(enhanced_security_system, 'running') and enhanced_security_system.running:
+            stats_data = enhanced_security_system.get_stats()
+            return JSONResponse(content=stats_data)
+    except Exception as e:
+        logger.error(f"Error getting stats from security system: {e}")
     
+    # Return default stats if all fails
     return JSONResponse(content={
-        "fps": 0,
-        "persons": 0,
-        "trusted": 0,
-        "unknown": 0,
-        "breaches": 0
+        "fps": 0.0,
+        "persons_detected": 0,
+        "alerts_triggered": 0,
+        "breaches_detected": 0,
+        "trusted_faces_seen": 0,
+        "uptime": 0,
+        "top_camera_persons": 0,
+        "bottom_camera_persons": 0,
+        "motion_ratio": 0.0
     })
 
 
@@ -720,19 +795,41 @@ async def get_snapshots(limit: int = 20):
 
 @app.websocket("/api/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for real-time updates"""
+    """WebSocket endpoint for real-time updates (metadata, stats, etc.)"""
     await manager.connect(websocket)
     
     try:
+        # Send initial connection message
+        await websocket.send_text(json.dumps({
+            "type": "connected",
+            "message": "WebSocket connected successfully",
+            "timestamp": datetime.now().isoformat()
+        }))
+        
+        # Handle incoming messages
         while True:
             data = await websocket.receive_text()
             if data:
-                message = json.loads(data)
-                logger.info(f"Received WebSocket message: {message}")
-                await websocket.send_text(json.dumps({
-                    "type": "echo",
-                    "message": "Message received"
-                }))
+                try:
+                    message = json.loads(data)
+                    logger.info(f"Received WebSocket message: {message}")
+                    
+                    # Handle different message types
+                    if message.get("type") == "ping":
+                        await websocket.send_text(json.dumps({
+                            "type": "pong",
+                            "timestamp": datetime.now().isoformat()
+                        }))
+                    else:
+                        # Echo back other messages
+                        await websocket.send_text(json.dumps({
+                            "type": "echo",
+                            "message": "Message received",
+                            "data": message
+                        }))
+                except json.JSONDecodeError:
+                    logger.warning(f"Invalid JSON received: {data}")
+                    
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception as e:

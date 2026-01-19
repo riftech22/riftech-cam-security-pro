@@ -441,6 +441,33 @@ class TrackingWorker:
                     
                     for obj_id in to_remove:
                         del self.tracked_objects[obj_id]
+                    
+                    # Write metadata to shared buffers
+                    metadata = [
+                        {
+                            'id': obj.id,
+                            'bbox': obj.bbox,
+                            'confidence': obj.confidence,
+                            'class_name': obj.class_name,
+                            'is_trusted': obj.is_trusted,
+                            'face_name': obj.face_name,
+                            'camera_label': obj.camera_label,
+                            'last_seen': obj.last_seen
+                        }
+                        for obj in self.tracked_objects.values()
+                    ]
+                    
+                    if self.is_v380_split:
+                        # Write separate metadata for top and bottom cameras
+                        top_metadata = [m for m in metadata if m['camera_label'] == 'top']
+                        bottom_metadata = [m for m in metadata if m['camera_label'] == 'bottom']
+                        full_metadata = metadata
+                        
+                        metadata_manager.write_objects("metadata_top", top_metadata)
+                        metadata_manager.write_objects("metadata_bottom", bottom_metadata)
+                        metadata_manager.write_objects("metadata_full", full_metadata)
+                    else:
+                        metadata_manager.write_objects("metadata", metadata)
                 
                 # Check zone breaches
                 person_centers = [person.center for person in persons]
@@ -519,8 +546,9 @@ class EnhancedSecuritySystem:
         self.is_v380_split = False
         
         # Queues (for inter-worker communication)
-        self.detection_queue = mp.Queue(maxsize=10)
-        self.tracking_queue = mp.Queue(maxsize=20)
+        # INCREASED: Larger queues to prevent frame drops with better performance
+        self.detection_queue = mp.Queue(maxsize=20)
+        self.tracking_queue = mp.Queue(maxsize=30)
         
         # Statistics
         self.stats = {
@@ -928,6 +956,21 @@ class EnhancedSecuritySystem:
     def get_stats(self) -> Dict:
         """Get system statistics"""
         return self.stats.copy()
+    
+    def _get_fps(self) -> float:
+        """Get current FPS"""
+        return self.stats['fps'] if 'fps' in self.stats else 0.0
+    
+    def get_current_frame(self) -> Optional[np.ndarray]:
+        """Get current frame from ring buffer for screenshot"""
+        try:
+            if self.is_v380_split:
+                return frame_manager_v2.force_read_frame("camera_full_raw")
+            else:
+                return frame_manager_v2.force_read_frame("camera_raw")
+        except Exception as e:
+            logger.error(f"Error getting current frame: {e}")
+            return None
     
     def get_system_status(self) -> Dict:
         """Get complete system status"""
