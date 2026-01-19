@@ -199,6 +199,10 @@ body {
     grid-template-columns: 2fr 1fr;
     gap: 20px;
     margin-bottom: 30px;
+    /* Remove height constraints - let content dictate */
+    height: auto;
+    min-height: auto;
+    align-items: start; /* Don't stretch cards */
 }
 
 /* ========== CARDS ========== */
@@ -211,7 +215,11 @@ body {
     box-shadow: var(--box-glow);
     backdrop-filter: blur(10px);
     position: relative;
-    overflow: hidden;
+    overflow: visible; /* Changed from hidden to visible - don't crop video */
+    /* Remove all height constraints */
+    height: auto;
+    min-height: auto;
+    max-height: none;
 }
 
 .card::before {
@@ -265,7 +273,10 @@ body {
 .video-container {
     position: relative;
     width: 100%;
-    /* Removed min-height - let container auto-adjust to video aspect ratio */
+    /* Remove ALL height constraints - let video determine height */
+    height: auto;
+    min-height: auto;
+    max-height: none;
     background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #0a0a0f 100%);
     border-radius: 8px;
     overflow: hidden;
@@ -273,11 +284,8 @@ body {
     box-shadow:
         0 0 20px rgba(0, 255, 255, 0.3),
         inset 0 0 60px rgba(0, 255, 255, 0.1);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    /* Maintain aspect ratio - auto-adjust to video size */
-    aspect-ratio: 16 / 9;  /* Default 16:9 for 1280x720 V380 split */
+    display: block; /* Changed from flex to block for proper sizing */
+    /* No aspect-ratio - let video dictate container size */
 }
 
 .video-container::before {
@@ -327,13 +335,12 @@ body {
 
 .video-stream {
     width: 100%;
-    height: 100%;
+    height: auto; /* Let video determine its own height */
     display: block;
     object-fit: contain;  /* Maintain aspect ratio, no cropping */
     position: relative;
     z-index: 0;
-    /* Remove max constraints - let it fill container */
-    /* Video will auto-adjust to container's aspect-ratio */
+    /* No max constraints - let video dictate size */
 }
 
 .video-overlay {
