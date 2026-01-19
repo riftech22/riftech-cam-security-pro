@@ -47,6 +47,7 @@ class DetectionConfig:
     motion_threshold: int = 15
     motion_min_area: int = 500
     skeleton_enabled: bool = True
+    fixed_images_dir: str = "data/fixed_images"  # Keep for face detector
 
 
 @dataclass
