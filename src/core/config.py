@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CameraConfig:
     """Camera configuration settings"""
-    type: str = "rtsp"  # rtsp, usb, or v380_split
+    type: str = "v380_split"  # rtsp, usb, or v380_split
     rtsp_url: str = "rtsp://admin:password@192.168.1.100:554/stream1"
     camera_id: int = 0
     width: int = 1280
@@ -26,7 +26,7 @@ class CameraConfig:
     fps: int = 15
     
     # V380 split camera settings
-    split_enabled: bool = False
+    split_enabled: bool = True
     detect_fps: int = 5  # Target FPS for V380 detection
 
 
