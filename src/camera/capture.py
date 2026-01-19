@@ -32,18 +32,15 @@ class CameraCapture:
         self.height = height
         self.fps = 15
         
-        # FFmpeg command
+        # FFmpeg command - Using MJPEG for more reliable RTSP streaming
         self.ffmpeg_cmd = [
             'ffmpeg',
             '-rtsp_transport', 'tcp',
+            '-stimeout', '5000000',  # 5 second timeout
             '-i', rtsp_url,
-            '-f', 'image2pipe',
-            '-pix_fmt', 'bgr24',
-            '-vcodec', 'rawvideo',
-            '-q:v', '2',
-            '-vsync', '0',
-            '-s', f'{width}x{height}',
-            '-r', str(self.fps),
+            '-vf', f'fps={self.fps},scale={width}:{height}',
+            '-f', 'mjpeg',  # Use MJPEG instead of rawvideo
+            '-q:v', '3',  # JPEG quality (2-31, lower is better)
             '-'
         ]
         
@@ -88,37 +85,71 @@ class CameraCapture:
         logger.info("Camera capture started")
     
     def _capture_loop(self):
-        """Capture loop running in separate thread"""
-        frame_size = self.width * self.height * 3
+        """Capture loop running in separate thread - Using MJPEG for reliability"""
+        frame_bytes = b''
+        fps_counter = 0
+        fps_time = time.time()
+        consecutive_errors = 0
         
         while self.running and self.process:
             try:
-                # Read frame bytes
-                raw_bytes = self.process.stdout.read(frame_size)
+                # Read data from FFmpeg (MJPEG format)
+                data = self.process.stdout.read(1024)
                 
-                if len(raw_bytes) != frame_size:
-                    logger.warning("Incomplete frame received")
+                if not data:
+                    if consecutive_errors < 10:
+                        logger.debug(f"No data from FFmpeg (attempt {consecutive_errors + 1})")
+                    consecutive_errors += 1
+                    if consecutive_errors > 100:
+                        logger.error("No more data from FFmpeg, attempting reconnect...")
+                        self.initialize()
+                        consecutive_errors = 0
                     time.sleep(0.1)
                     continue
                 
-                # Convert to numpy array
-                frame = np.frombuffer(raw_bytes, dtype=np.uint8)
-                frame = frame.reshape((self.height, self.width, 3))
+                frame_bytes += data
+                consecutive_errors = 0
                 
-                # Put in queue (drop if full)
-                try:
-                    self.frame_queue.put_nowait(frame)
-                except queue.Full:
-                    # Drop oldest frame
-                    try:
-                        self.frame_queue.get_nowait()
-                        self.frame_queue.put_nowait(frame)
-                    except queue.Empty:
-                        pass
+                # Check for JPEG end marker (JPEG ends with FF D9)
+                if b'\xff\xd9' in frame_bytes:
+                    # Extract complete frame
+                    end_marker = frame_bytes.find(b'\xff\xd9') + 2
+                    jpeg_data = frame_bytes[:end_marker]
+                    frame_bytes = frame_bytes[end_marker:]
+                    
+                    # Decode JPEG to numpy array
+                    frame = cv2.imdecode(
+                        np.frombuffer(jpeg_data, dtype=np.uint8),
+                        cv2.IMREAD_COLOR
+                    )
+                    
+                    if frame is not None:
+                        # Put in queue (drop if full)
+                        try:
+                            self.frame_queue.put_nowait(frame)
+                            fps_counter += 1
+                        except queue.Full:
+                            # Drop oldest frame
+                            try:
+                                self.frame_queue.get_nowait()
+                                self.frame_queue.put_nowait(frame)
+                            except queue.Empty:
+                                pass
+                
+                # Calculate FPS every second
+                if time.time() - fps_time >= 1.0:
+                    self.fps = fps_counter
+                    fps_counter = 0
+                    fps_time = time.time()
+                    if self.fps > 0:
+                        logger.debug(f"Capture FPS: {self.fps}")
                 
             except Exception as e:
                 logger.error(f"Capture error: {e}")
+                consecutive_errors += 1
                 time.sleep(0.1)
+        
+        logger.info("Camera capture loop stopped")
     
     def read(self) -> Optional[np.ndarray]:
         """
