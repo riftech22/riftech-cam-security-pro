@@ -350,7 +350,7 @@ class FrameManagerV2:
     
     def write_frame(self, name: str, frame: np.ndarray) -> bool:
         """
-        Write frame to ring buffer (auto-resize if needed)
+        Write frame to ring buffer (auto-resize with aspect ratio if needed)
         
         Args:
             name: Buffer name
@@ -367,9 +367,46 @@ class FrameManagerV2:
             buffer = self.ring_buffers[name]
             
             # Resize frame if size doesn't match buffer
+            # CRITICAL: Maintain aspect ratio!
             if frame.shape != buffer.shape:
                 import cv2
-                frame = cv2.resize(frame, (buffer.shape[1], buffer.shape[0]), interpolation=cv2.INTER_LINEAR)
+                frame_height, frame_width = frame.shape[:2]
+                target_height, target_width = buffer.shape[:2]
+                
+                # Calculate aspect ratio
+                frame_aspect = frame_width / frame_height
+                target_aspect = target_width / target_height
+                
+                # If aspect ratios are similar (within 5%), resize directly
+                # Otherwise, maintain frame aspect ratio
+                if abs(frame_aspect - target_aspect) / target_aspect < 0.05:
+                    # Similar aspect ratio - resize directly
+                    frame = cv2.resize(frame, (target_width, target_height), interpolation=cv2.INTER_LINEAR)
+                else:
+                    # Different aspect ratio - maintain frame's aspect ratio
+                    # Fit within target dimensions
+                    scale = min(target_width / frame_width, target_height / frame_height)
+                    new_width = int(frame_width * scale)
+                    new_height = int(frame_height * scale)
+                    
+                    # Resize maintaining aspect ratio
+                    resized = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+                    
+                    # Add padding (letterbox) to fill target dimensions
+                    pad_left = (target_width - new_width) // 2
+                    pad_right = target_width - new_width - pad_left
+                    pad_top = (target_height - new_height) // 2
+                    pad_bottom = target_height - new_height - pad_top
+                    
+                    frame = cv2.copyMakeBorder(
+                        resized,
+                        pad_top,
+                        pad_bottom,
+                        pad_left,
+                        pad_right,
+                        cv2.BORDER_CONSTANT,
+                        value=(0, 0, 0)  # Black padding
+                    )
             
             return buffer.write(frame)
     

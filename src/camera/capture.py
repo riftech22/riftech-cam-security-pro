@@ -423,8 +423,16 @@ class V380SplitCameraCapture:
                     
                     if frame is not None:
                         # Split frame into top and bottom
-                        frame_height = frame.shape[0]
-                        split_point = frame_height // 2
+                        # CRITICAL: Frame must be resized to expected size first!
+                        frame_height, frame_width = frame.shape[:2]
+                        
+                        # Resize to expected dimensions if different
+                        if frame_width != self.width or frame_height != self.height:
+                            frame = cv2.resize(frame, (self.width, self.height), interpolation=cv2.INTER_LINEAR)
+                            logger.debug(f"Resized frame from {frame_height}x{frame_width} to {self.height}x{self.width}")
+                        
+                        # Now split at the correct height
+                        split_point = self.height // 2
                         
                         top_frame = frame[:split_point, :, :]
                         bottom_frame = frame[split_point:, :, :]
