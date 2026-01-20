@@ -23,7 +23,10 @@ from fastapi import (
     Depends,
     HTTPException,
     Response,
-    Header
+    Header,
+    Form,
+    File,
+    UploadFile
 )
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -45,13 +48,18 @@ from ..core.metadata_manager import metadata_manager
 Path("data").mkdir(parents=True, exist_ok=True)
 
 # Security settings
-SECRET_KEY = "riftech-security-secret-key-2024-change-in-production"
+# SECRET_KEY should be set via environment variable in production
+import os
+SECRET_KEY = os.getenv("RIFTECH_SECRET_KEY", "riftech-security-secret-key-2024-CHANGE-IN-PRODUCTION")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 24 * 60  # 24 hours
 
-# Admin credentials (change in production!)
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD_HASH = bcrypt.hashpw(b"admin", bcrypt.gensalt()).decode('utf-8')
+# Admin credentials
+# NOTE: Change these in production!
+# Use environment variables: RIFTECH_ADMIN_USERNAME, RIFTECH_ADMIN_PASSWORD
+ADMIN_USERNAME = os.getenv("RIFTECH_ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("RIFTECH_ADMIN_PASSWORD", "admin").encode('utf-8')
+ADMIN_PASSWORD_HASH = bcrypt.hashpw(ADMIN_PASSWORD, bcrypt.gensalt()).decode('utf-8')
 
 # WebSocket manager
 class ConnectionManager:
